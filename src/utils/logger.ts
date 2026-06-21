@@ -24,9 +24,9 @@ export const logger = {
   error: (msg: string) => {
     if (!shouldLog('error')) return;
     if ((globalThis as any).JSON_OUTPUT) {
-      console.error(JSON.stringify({ type: 'error', message: msg }));
+      console.log(JSON.stringify({ type: 'error', message: msg }));
     } else {
-      console.error(chalk.red(`Error: ${msg}`));
+      console.log(chalk.red(`Error: ${msg}`));
     }
   },
   debug: (msg: string) => {

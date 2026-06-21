@@ -74,7 +74,7 @@ export async function installSkill(
   const targetSkill = skills.find(s => s.name.toLowerCase() === skillName.toLowerCase());
   
   if (!targetSkill) {
-    logger.error(`Skill "${skillName}" not found in registry.`);
+    // Skill not found; silently return false
     return false;
   }
 
@@ -98,7 +98,7 @@ export async function installSkill(
     logger.info(`✔ Installed skill "${targetSkill.name}" to ${global ? 'global' : 'workspace'} directory.`);
     return true;
   } catch (error: any) {
-    logger.error(`Failed to install skill "${skillName}": ${error.message}`);
+    logger.info(`Failed to install skill "${skillName}": ${error.message}`);
     return false;
   }
 }
