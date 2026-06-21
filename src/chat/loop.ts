@@ -44,6 +44,7 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
     input: process.stdin,
     output: process.stdout,
     prompt: '> ',
+    completer,
   });
 
   logger.info(`Working directory: ${process.cwd()}`);
@@ -335,7 +336,44 @@ Skills Commands:
     await promptNext(session, rl, config);
   });
 
+  const keypressHandler = async (str: string, key: any) => {
+    if (key && key.ctrl) {
+      if (key.name === 'k') {
+        const assistantMessages = session.messages.filter(m => m.role === 'assistant');
+        if (assistantMessages.length === 0) {
+          logger.info('\nNo response to copy.');
+        } else {
+          const lastResponse = assistantMessages[assistantMessages.length - 1].content || '';
+          const success = await copyToClipboard(lastResponse);
+          if (success) {
+            logger.info('\n✔ Last response copied to clipboard.');
+          } else {
+            logger.error('\nFailed to copy to clipboard.');
+          }
+        }
+        await promptNext(session, rl, config);
+      } else if (key.name === 'g') {
+        logger.info('\nPasting from clipboard...');
+        const clipboardContent = await pasteFromClipboard();
+        if (!clipboardContent) {
+          logger.info('Clipboard is empty.');
+          await promptNext(session, rl, config);
+        } else {
+          logger.info(`\n\x1b[90mPasted Content:\x1b[0m\n${clipboardContent}\n`);
+          await activateSkills(clipboardContent, session);
+          session.addMessage({ role: 'user', content: clipboardContent });
+          await processTurn(session, engine);
+          await saveSession(session.id, session.toJSON());
+          await promptNext(session, rl, config);
+        }
+      }
+    }
+  };
+
+  process.stdin.on('keypress', keypressHandler);
+
   rl.on('close', async () => {
+    process.stdin.removeListener('keypress', keypressHandler);
     await saveSession(session.id, session.toJSON());
     await engine.close();
     logger.info('Goodbye!');
@@ -405,5 +443,27 @@ async function renderStatusHeader(session: Session, cwd: string, themeName?: str
   } else {
     console.log(`${t.borderChar}│${reset} 🕒 Recent edits: None`);
   }
+  console.log(`${t.borderChar}├${border}┤${reset}`);
+  console.log(`${t.borderChar}│${reset} ⌨ Tab = Autocomplete | Ctrl+K = Copy Response | Ctrl+G = Paste Prompt`);
   console.log(`${t.borderChar}└${border}┘${reset}`);
+}
+
+function completer(line: string) {
+  const completions = [
+    '/model',
+    '/review',
+    '/suggest',
+    '/compress',
+    '/clear',
+    '/sessions',
+    '/save',
+    '/skills',
+    '/theme',
+    '/copy',
+    '/paste',
+    '/exit',
+    '/cancel',
+  ];
+  const hits = completions.filter((c) => c.startsWith(line));
+  return [hits.length ? hits : completions, line];
 }
