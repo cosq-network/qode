@@ -36,3 +36,64 @@ jobs:
 
       - name: Run unit tests
         run: npm test
+
+  release:
+    name: Release & Publish
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Git configuration
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine version bump
+        id: bump
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LATEST_TAG" ]; then
+            COMMITS=$(git log --oneline)
+          else
+            COMMITS=$(git log --oneline $LATEST_TAG..HEAD)
+          fi
+          
+          BUMP_TYPE="patch"
+          if echo "$COMMITS" | grep -E "BREAKING CHANGE|feat\!"; then
+            BUMP_TYPE="major"
+          elif echo "$COMMITS" | grep -E "feat"; then
+            BUMP_TYPE="minor"
+          fi
+          
+          echo "Bumping version type: $BUMP_TYPE"
+          npm version $BUMP_TYPE -m "chore(release): %s [skip ci]"
+          echo "NEW_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+
+      - name: Push version bump & git tags
+        run: |
+          git push origin main --follow-tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

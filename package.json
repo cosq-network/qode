@@ -1,5 +1,5 @@
 {
-  "name": "qode",
+  "name": "@qode/qode",
   "version": "1.0.0",
   "type": "module",
   "author": "Benoy Bose <benoybose@cosq.net> (COSQ Network Private Limited)",
@@ -7,6 +7,9 @@
   "main": "dist/index.js",
   "bin": {
     "qode": "./dist/index.js"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "tsc",
