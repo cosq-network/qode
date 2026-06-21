@@ -30,6 +30,16 @@ describe('Chat Loop Completer', () => {
     expect(line).toBe('/invalid');
     expect(hits).toContain('/model');
     expect(hits).toContain('/exit');
+    expect(hits).toContain('/status');
     expect(hits.length).toBeGreaterThan(10);
+  });
+
+  test('returns matching completions for /s', () => {
+    const [hits, line] = completer('/s');
+    expect(line).toBe('/s');
+    expect(hits).toContain('/status');
+    expect(hits).toContain('/suggest');
+    expect(hits).toContain('/save');
+    expect(hits).toContain('/skills');
   });
 });

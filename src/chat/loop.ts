@@ -12,6 +12,8 @@ import { fetchRegistry, searchRegistry, installSkill } from '../utils/registry.j
 import { getRecentFiles } from '../utils/files.js';
 import { getTheme, THEMES } from '../utils/themes.js';
 import { copyToClipboard, pasteFromClipboard } from '../utils/clipboard.js';
+import path from 'path';
+import fs from 'fs-extra';
 
 export async function startChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
   const config = await loadConfig();
@@ -97,6 +99,7 @@ Commands:
   /save                       Save current session
   /skills                     Manage skills (list, search, install, list-local)
   /theme [name]               List or switch CLI visual themes
+  /status                     Show session dashboard (tokens, duration, changed files)
   /copy                       Copy last response to clipboard
   /paste                      Paste clipboard content as prompt
   /exit                       Quit
@@ -294,6 +297,69 @@ Skills Commands:
       return;
     }
 
+    if (trimmed === '/status') {
+      logger.info('\n┌─────────────────────────── Session Status ───────────────────────────┐');
+      logger.info(`│ 🤖 Model: \x1b[36m${session.modelName}\x1b[0m (${session.provider?.providerName || 'N/A'})`);
+      logger.info(`│ 📁 Directory: \x1b[33m${process.cwd()}\x1b[0m`);
+      
+      // Duration
+      const sessionStart = new Date(session.createdAt).getTime();
+      const elapsedMs = Date.now() - sessionStart;
+      const formatDuration = (ms: number) => {
+        const secs = Math.floor(ms / 1000) % 60;
+        const mins = Math.floor(ms / 60000) % 60;
+        const hours = Math.floor(ms / 3600000);
+        return `${hours > 0 ? `${hours}h ` : ''}${mins > 0 ? `${mins}m ` : ''}${secs}s`;
+      };
+      logger.info(`│ 🕒 Session Age: ${formatDuration(elapsedMs)}`);
+
+      // Tokens
+      let consumed = 0;
+      let limit = 0;
+      if (session.provider) {
+        consumed = session.messages.reduce((sum, m) => sum + session.provider.countTokens(m.content ?? ''), 0);
+        limit = session.provider.maxContextTokens;
+      }
+      const pct = limit > 0 ? ((consumed / limit) * 100).toFixed(1) : '0';
+      logger.info(`│ 📊 Token Usage: \x1b[32m${consumed}\x1b[0m / ${limit} tokens (${pct}%)`);
+
+      // Theme
+      logger.info(`│ 🎨 Active Theme: \x1b[36m${config.theme || 'default'}\x1b[0m`);
+
+      // Recent Files
+      let recentFiles: string[] = [];
+      try {
+        recentFiles = await getRecentFiles(process.cwd(), 5);
+      } catch {}
+      const filesWithTime = [];
+      for (const file of recentFiles) {
+        try {
+          const stat = await fs.stat(path.join(process.cwd(), file));
+          const diffMs = Date.now() - stat.mtimeMs;
+          let timeStr = '';
+          if (diffMs < 60000) {
+            timeStr = 'just now';
+          } else if (diffMs < 3600000) {
+            timeStr = `${Math.floor(diffMs / 60000)}m ago`;
+          } else {
+            timeStr = `${Math.floor(diffMs / 3600000)}h ago`;
+          }
+          filesWithTime.push(`\x1b[35m${file}\x1b[0m (${timeStr})`);
+        } catch {
+          filesWithTime.push(`\x1b[35m${file}\x1b[0m`);
+        }
+      }
+      logger.info(`│ 📄 Changed Files: ${filesWithTime.length > 0 ? filesWithTime.join(', ') : 'None'}`);
+
+      // Tools & MCP
+      const totalTools = engine.getTools().length;
+      logger.info(`│ 🔧 Loaded Tools: ${totalTools} active tools (including built-ins & MCP)`);
+
+      logger.info('└──────────────────────────────────────────────────────────────────────┘\n');
+      await promptNext(session, rl, config);
+      return;
+    }
+
     if (trimmed === '/copy') {
       const assistantMessages = session.messages.filter(m => m.role === 'assistant');
       if (assistantMessages.length === 0) {
@@ -459,6 +525,7 @@ export function completer(line: string) {
     '/save',
     '/skills',
     '/theme',
+    '/status',
     '/copy',
     '/paste',
     '/exit',
