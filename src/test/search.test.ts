@@ -1,7 +1,6 @@
 // src/test/search.test.ts
 const { executeToolCall } = require('../tools/exec');
 const fs = require('fs-extra');
-const path = require('path');
 
 // Mock fs-extra
 jest.mock('fs-extra', () => {

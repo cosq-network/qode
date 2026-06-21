@@ -3,8 +3,8 @@
 export const logger = {
   info: (msg: string) => console.log(msg),
   error: (msg: string) => console.error(`\x1b[31mError:\x1b[0m ${msg}`),
-  debug: (msg: string) => {
+  debug: (_msg: string) => {
     // Uncomment for debug output
-    // console.debug(msg);
+    // console.debug(_msg);
   },
 };

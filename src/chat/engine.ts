@@ -1,4 +1,3 @@
-import { loadConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { findModel } from '../providers/models.js';
 import { OpenAICompatProvider } from '../providers/openai-compat.js';

@@ -1058,13 +1058,13 @@ export async function executeToolCall(
           'python3',
           ['-m', 'venv', vPath],
           { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024 },
-          (err, stdout, stderr) => {
+          (err, _stdout, _stderr) => {
             if (err) {
               execFile(
                 'python',
                 ['-m', 'venv', vPath],
                 { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024 },
-                (err2, stdout2, stderr2) => {
+                (err2, _stdout2, stderr2) => {
                   if (err2) {
                     resolve(`Error creating venv: ${stderr2 || err2.message}`);
                   } else {

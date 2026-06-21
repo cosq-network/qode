@@ -1,7 +1,5 @@
 // src/chat/session.test.ts
 const { Session } = require('./session');
-const { logger } = require('../utils/logger');
-const { loadConfig } = require('../config');
 
 // Mock logger to silence output during tests
 jest.mock('../utils/logger', () => ({

@@ -2,7 +2,6 @@ import fs from 'fs-extra';
 import path from 'path';
 import * as readline from 'readline';
 import { logger } from './logger.js';
-import { setCwd } from '../tools/exec.js';
 import { ICONS } from './themes.js';
 
 export class FileBrowser {

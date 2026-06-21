@@ -2,7 +2,6 @@ import path from 'path';
 import fs from 'fs-extra';
 import ignore from 'ignore';
 
-const ignoreFactory = ignore;
 
 // Patterns always ignored
 const ALWAYS_IGNORE = ['node_modules/**', '.git/**', '.qode/**'];

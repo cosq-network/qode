@@ -1,9 +1,6 @@
 // src/chat/engine.test.ts
 const { ChatEngine } = require('./engine');
 const { loadConfig } = require('../config');
-const { findModel } = require('../providers/models');
-const { OpenAICompatProvider } = require('../providers/openai-compat');
-const { GeminiProvider } = require('../providers/gemini');
 
 // Mock configuration
 jest.mock('../config', () => ({

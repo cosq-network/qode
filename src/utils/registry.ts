@@ -32,7 +32,7 @@ export async function fetchRegistry(url = DEFAULT_REGISTRY_URL): Promise<Registr
     try {
       await fs.ensureDir(CACHE_DIR);
       await fs.writeJson(CACHE_FILE, skills, { spaces: 2 });
-    } catch (cacheWriteError: any) {
+    } catch {
       // Quietly ignore cache write errors
     }
 
