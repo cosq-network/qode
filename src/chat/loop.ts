@@ -593,6 +593,22 @@ async function renderStatusHeader(session: Session, cwd: string, themeName?: str
 }
 
 export function completer(line: string) {
+  // Handle "@" prefix for file and directory path suggestions
+  const atPos = line.lastIndexOf('@');
+  if (atPos !== -1) {
+    const prefix = line.slice(atPos + 1);
+    try {
+      const entries = fs.readdirSync(process.cwd());
+      const matches = entries
+        .filter((e) => e.startsWith(prefix))
+        .map((e) => line.slice(0, atPos + 1) + e);
+      return [matches.length ? matches : [], line];
+    } catch {
+      // fall back to slash completions on error
+    }
+  }
+
+  // Default slash command completions
   const completions = [
     '/model',
     '/review',

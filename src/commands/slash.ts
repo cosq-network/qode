@@ -88,7 +88,7 @@ export async function modelStatus(): Promise<void> {
 export const slashCommandHandlers: Record<string, (...args: string[]) => Promise<void>> = {
   'set-key': async (provider: string, key: string) => setKey(provider, key),
   'clear-key': async (provider: string) => clearKey(provider),
-  'download-qwen': async () => downloadQwenModel(),
+  // 'download-qwen' command removed; model download now runs automatically on startup.
   'model-status': async () => modelStatus(),
 };
 

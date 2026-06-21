@@ -118,6 +118,21 @@ Instead of typing, you can leverage native hotkeys bound to your host clipboard:
 
 ---
 
+### Path Suggestions with `@` Prefix
+
+You can reference files or directories directly in your prompt by typing `@` followed by the beginning of the path. The autocomplete will suggest matching entries from the current working directory.
+
+**Examples**
+
+- `@src/ut` → suggests `src/utils/`
+- `@README` → suggests `README.md`
+- `@docs/` → suggests files inside the `docs/` folder.
+
+Press **Tab** or **Enter** to accept the suggestion, which inserts the full relative path at the cursor.
+
+This works alongside other prompt features like multiline input and clipboard shortcuts.
+---
+
 ## 5. Shell Execution Mode (`!`)
 
 You can run commands directly in your host OS shell without exiting the REPL interface by prefixing your input prompt with an exclamation mark `!`.
