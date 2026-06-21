@@ -1,35 +1,54 @@
+import * as readline from 'readline';
 import fs from 'fs-extra';
-import path from 'path';
 import os from 'os';
-
-const CONFIG_DIR = path.join(os.homedir(), '.cosqcode');
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+import path from 'path';
 
 export interface ProviderConfig {
   apiKey?: string;
-  baseURL?: string;   // for OpenAI-compatible APIs
+  baseURL?: string;
+}
+
+export interface MCPServerConfig {
+  command: string;
+  args: string[];
 }
 
 export interface CosqcodeConfig {
   providers: Record<string, ProviderConfig>;
   defaultModel?: string;
   autoCompress: boolean;
-  compressThreshold: number; // token limit before compression (default 0.8 * context)
+  compressThreshold: number;
+  mcpServers?: MCPServerConfig[];
 }
+
+const CONFIG_DIR = path.join(os.homedir(), '.cosqcode');
+const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 const DEFAULT_CONFIG: CosqcodeConfig = {
   providers: {},
   autoCompress: true,
   compressThreshold: 0.8,
+  mcpServers: [],
 };
 
 export async function loadConfig(): Promise<CosqcodeConfig> {
-  await fs.ensureDir(CONFIG_DIR);
-  if (!(await fs.pathExists(CONFIG_FILE))) {
-    await fs.writeJson(CONFIG_FILE, DEFAULT_CONFIG, { spaces: 2 });
-    return DEFAULT_CONFIG;
+  try {
+    const raw = await fs.readJson(CONFIG_FILE);
+    return {
+      ...DEFAULT_CONFIG,
+      ...raw,
+      providers: {
+        ...DEFAULT_CONFIG.providers,
+        ...(raw?.providers ?? {}),
+      },
+      mcpServers: Array.isArray(raw?.mcpServers) ? raw.mcpServers : [],
+    };
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') {
+      return { ...DEFAULT_CONFIG };
+    }
+    throw error;
   }
-  return fs.readJson(CONFIG_FILE);
 }
 
 export async function saveConfig(config: CosqcodeConfig): Promise<void> {
@@ -37,22 +56,38 @@ export async function saveConfig(config: CosqcodeConfig): Promise<void> {
   await fs.writeJson(CONFIG_FILE, config, { spaces: 2 });
 }
 
-import readline from 'readline';
-
 export async function configureAuth(): Promise<void> {
   const config = await loadConfig();
-  // Interactive setup: ask for keys (simplified here, you'd use inquirer)
-  console.log('Interactive auth setup (enter provider key or leave blank):');
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const question = (q: string) => new Promise<string>((res) => rl.question(q, res));
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
-  for (const provider of ['Google AI Studio', 'GitHub Models', 'DeepSeek API', 'OpenRouter', 'GroqCloud', 'OpenCode Zen']) {
-    const key = await question(`${provider} API key (ENTER to skip): `);
-    if (key.trim()) {
-      config.providers[provider] = { apiKey: key.trim() };
+  const question = (prompt: string): Promise<string> =>
+    new Promise((resolve) => {
+      rl.question(prompt, (answer) => resolve(answer));
+    });
+
+  const providers = [
+    'Google AI Studio',
+    'GitHub Models',
+    'DeepSeek API',
+    'OpenRouter',
+    'GroqCloud',
+    'OpenCode Zen',
+  ];
+
+  for (const provider of providers) {
+    const value = await question(`${provider} API key (leave blank to skip): `);
+    if (value.trim()) {
+      config.providers[provider] = {
+        ...config.providers[provider],
+        apiKey: value.trim(),
+      };
     }
   }
+
   rl.close();
   await saveConfig(config);
-  console.log('Configuration saved.');
+  console.log('Authentication settings saved.');
 }
