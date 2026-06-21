@@ -1,0 +1,44 @@
+{
+  "name": "cosqcode",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Multi-provider coding agent CLI with tool use, context compression, and session resume",
+  "main": "dist/index.js",
+  "bin": {
+    "cosqcode": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "fs-extra": "^11.2.0",
+    "gpt-tokenizer": "^1.0.0",
+    "ignore": "^5.3.2",
+    "openai": "^4.52.7",
+    "tiktoken": "^1.0.15",
+    "uuid": "^9.0.0",
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.14.0",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^9.21.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.25.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist/"
+  ]
+}
