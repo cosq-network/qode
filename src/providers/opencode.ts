@@ -51,7 +51,7 @@ export class OpenCodeProvider extends LLMProvider {
 
   countTokens(text: string): number {
     // Approximate token count using OpenAI tokenizer.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { encode } = require('gpt-tokenizer');
     return encode(text).length;
   }

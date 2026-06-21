@@ -10,7 +10,7 @@ import { setCwd } from '../tools/exec.js';
 import { processTurn } from './processor.js';
 import { loadSkills, matchSkills } from '../utils/skills.js';
 import { fetchRegistry, searchRegistry, installSkill } from '../utils/registry.js';
-import { runWithSpinner } from '../utils/spinner.js';
+// import { runWithSpinner as _runWithSpinner } from '../utils/spinner.js';
 import { handleSlashCommand } from '../commands/slash.js';
 import { getRecentFiles } from '../utils/files.js';
 import { getTheme, THEMES, ICONS } from '../utils/themes.js';

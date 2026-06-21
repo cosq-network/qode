@@ -15,7 +15,7 @@ export class AnthropicProvider extends LLMProvider {
     this.client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
 
-  async chat(messages: LLMMessage[], tools?: any[]): Promise<ChatResponse> {
+  async chat(messages: LLMMessage[], _tools?: any[]): Promise<ChatResponse> {
     const anthropicMessages = messages.map((msg) => ({ role: msg.role, content: msg.content }));
     const response = await this.client.messages.create({
       model: this.modelName,

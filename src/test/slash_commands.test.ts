@@ -57,7 +57,7 @@ describe('Slash command utilities', () => {
   });
 
   test('downloadQwenModel runs spinner and exec', async () => {
-    (exec as unknown as jest.Mock).mockImplementation((_cmd: string, cb: Function) =>
+    (exec as unknown as jest.Mock).mockImplementation((_cmd: string, cb: (error: any, result: any) => void) =>
       cb(null, { stdout: '', stderr: '' })
     );
     await downloadQwenModel();

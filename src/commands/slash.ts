@@ -9,7 +9,7 @@ import { exec } from 'child_process';
 import { notify, writeDownloadStatus, readDownloadStatus } from '../utils/notification.js';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
+const _execAsync = promisify(exec);
 
 /** Set an API key for a provider via slash command.
  * Example: `/set-key OpenAI sk-xxxx`

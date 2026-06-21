@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import ora from 'ora';
+// import ora from 'ora';
 import { logger } from './utils/logger.js';
 import { startChatLoop } from './chat/loop.js';
 import { downloadQwenModel } from './commands/slash.js';

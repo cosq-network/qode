@@ -14,7 +14,8 @@ export async function notify(message: string): Promise<void> {
     const { default: notifier } = await import('node-notifier');
     notifier.notify({ title: 'Qode', message });
     logger.info(`🔔 Notification sent: ${message}`);
-  } catch (e) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+} catch (_) {
     // Module not available – fallback to console info.
     logger.info(`🔔 (fallback) ${message}`);
   }
