@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { startChatLoop } from './chat/loop.js';
 import { listModels, updateModels } from './providers/models.js';
 import { configureAuth } from './config.js';
+import { logger } from './utils/logger.js';
 import { listSessions, deleteSession } from './utils/storage.js';
 
 const program = new Command();
@@ -23,7 +24,7 @@ program
       await startChatLoop(opts.resume, opts.model);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`Error: ${message}`);
+      logger.error(`Error: ${message}`);
       process.exitCode = 1;
     }
   });
@@ -43,8 +44,22 @@ program
 // authentication
 program
   .command('auth')
-  .description('Set API keys for providers')
-  .action(() => configureAuth());
+  .description('Set or clear API keys for providers')
+  .option('--reset', 'Remove all stored API keys')
+  .action(async (opts) => {
+    if (opts.reset) {
+      const confirm = await import('inquirer').then(i => i.prompt([
+        { type: 'confirm', name: 'ok', message: 'Delete all stored API keys?', default: false },
+      ]));
+      if (confirm.ok) {
+        // Clear all providers config
+        await import('./config.js').then(m => m.saveConfig({ providers: {}, autoCompress: true, compressThreshold: 0.8, mcpServers: [] }));
+        console.log('All credentials cleared.');
+        return;
+      }
+    }
+    await configureAuth();
+  });
 
 // session management
 program
