@@ -1,16 +1,29 @@
 import { Session } from './session.js';
 import { ChatEngine } from './engine.js';
 import { processToolCalls } from './tool-handler.js';
+import { logger } from '../utils/logger.js';
 
-/**
- * Wrapper that preserves the original REPL API.
- * It forwards the session's messages to {@link processToolCalls}.
- * Any tool calls present in the messages will be executed.
- */
-export async function processTurn(session: Session, _engine: ChatEngine): Promise<void> {
-  // Extract tool calls from the session messages if present.
-  // The type is loosely any because the actual shape is validated at runtime.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const toolCalls = (session.messages as any) as any[];
-  await processToolCalls(toolCalls, session.messages);
+export async function processTurn(session: Session, engine: ChatEngine): Promise<void> {
+  try {
+    // Compress context if needed before sending
+    await session.compressIfNeeded();
+
+    let response = await session.provider.chat(session.messages, engine.getTools());
+    session.addMessage(response.message);
+
+    // Loop while there are tool calls requested by the model
+    while (response.message.tool_calls && response.message.tool_calls.length > 0) {
+      await processToolCalls(response.message.tool_calls, session.messages);
+      response = await session.provider.chat(session.messages, engine.getTools());
+      session.addMessage(response.message);
+    }
+
+    // Print assistant response
+    if (response.message.content) {
+      console.log(`\n${response.message.content}\n`);
+    }
+  } catch (error: any) {
+    logger.error(`Error during conversation turn: ${error.message}`);
+  }
 }
+

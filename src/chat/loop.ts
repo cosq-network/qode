@@ -9,6 +9,7 @@ import { setCwd } from '../tools/exec.js';
 import { processTurn } from './processor.js';
 import { loadSkills, matchSkills } from '../utils/skills.js';
 import { fetchRegistry, searchRegistry, installSkill } from '../utils/registry.js';
+import { getRecentFiles } from '../utils/files.js';
 
 export async function startChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
   const config = await loadConfig();
@@ -45,7 +46,7 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
 
   logger.info(`Working directory: ${process.cwd()}`);
   logger.info('Type /help for commands, /exit to quit.');
-  rl.prompt();
+  await promptNext(session, rl);
 
   rl.on('line', async (input) => {
     const trimmed = input.trim();
@@ -66,7 +67,7 @@ Commands:
   /skills                     Manage skills (list, search, install, list-local)
   /exit                       Quit
       `);
-      rl.prompt();
+      await promptNext(session, rl);
       return;
     }
 
@@ -80,7 +81,7 @@ Commands:
         session.modelName = newModel;
         logger.info(`Switched to ${newModel}`);
       }
-      rl.prompt();
+      await promptNext(session, rl);
       return;
     }
 
@@ -113,7 +114,7 @@ Commands:
         }
         await saveSession(session.id, session.toJSON());
       }
-      rl.prompt();
+      await promptNext(session, rl);
       return;
     }
 
@@ -131,32 +132,32 @@ Commands:
         await processTurn(session, engine);
         await saveSession(session.id, session.toJSON());
       }
-      rl.prompt();
+      await promptNext(session, rl);
       return;
     }
 
     if (trimmed === '/compress') {
       await session.compressIfNeeded();
       await saveSession(session.id, session.toJSON());
-      rl.prompt();
+      await promptNext(session, rl);
       return;
     }
     if (trimmed === '/clear') {
       session.messages = [session.messages[0]]; // keep system
       logger.info('Conversation cleared.');
       await saveSession(session.id, session.toJSON());
-      rl.prompt();
+      await promptNext(session, rl);
       return;
     }
     if (trimmed === '/sessions') {
       await listSessions();
-      rl.prompt();
+      await promptNext(session, rl);
       return;
     }
     if (trimmed === '/save') {
       await saveSession(session.id, session.toJSON());
       logger.info('Session saved.');
-      rl.prompt();
+      await promptNext(session, rl);
       return;
     }
 
@@ -236,7 +237,7 @@ Skills Commands:
       } else {
         logger.info(`Unknown skills sub-command: ${subCommand}. Type /skills help for details.`);
       }
-      rl.prompt();
+      await promptNext(session, rl);
       return;
     }
 
@@ -245,7 +246,7 @@ Skills Commands:
     session.addMessage({ role: 'user', content: trimmed });
     await processTurn(session, engine);
     await saveSession(session.id, session.toJSON());
-    rl.prompt();
+    await promptNext(session, rl);
   });
 
   rl.on('close', async () => {
@@ -276,4 +277,47 @@ async function activateSkills(prompt: string, session: Session): Promise<void> {
     logger.error(`Failed to load or match skills: ${error.message}`);
   }
 }
+
+async function promptNext(session: Session, rl: readline.Interface): Promise<void> {
+  await renderStatusHeader(session, process.cwd());
+  rl.prompt();
+}
+
+async function renderStatusHeader(session: Session, cwd: string): Promise<void> {
+  const model = session.modelName;
+  const providerName = session.provider?.providerName || 'N/A';
+  
+  // Calculate tokens
+  let consumedTokens = 0;
+  let maxTokens = 0;
+  if (session.provider) {
+    consumedTokens = session.messages.reduce(
+      (sum, m) => sum + session.provider.countTokens(m.content ?? ''),
+      0
+    );
+    maxTokens = session.provider.maxContextTokens;
+  }
+  const pctUsed = maxTokens > 0 ? ((consumedTokens / maxTokens) * 100).toFixed(1) : '0';
+
+  // Get recent files
+  let recentFiles: string[] = [];
+  try {
+    recentFiles = await getRecentFiles(cwd);
+  } catch {
+    // Ignore error
+  }
+
+  const border = '─'.repeat(78);
+  console.log(`\n┌${border}┐`);
+  console.log(`│ 🤖 Model: \x1b[36m${model}\x1b[0m (${providerName})`);
+  console.log(`│ 📁 Directory: \x1b[33m${cwd}\x1b[0m`);
+  console.log(`│ 📊 Context usage: \x1b[32m${consumedTokens}\x1b[0m / ${maxTokens} tokens (${pctUsed}%)`);
+  if (recentFiles.length > 0) {
+    console.log(`│ 🕒 Recent edits: ${recentFiles.map(f => `\x1b[35m${f}\x1b[0m`).join(', ')}`);
+  } else {
+    console.log(`│ 🕒 Recent edits: None`);
+  }
+  console.log(`└${border}┘`);
+}
+
 
