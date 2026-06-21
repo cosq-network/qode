@@ -1,3 +1,4 @@
+import type { ToolDefinition } from '../tools/definitions.js';
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
@@ -25,7 +26,7 @@ export abstract class LLMProvider {
   abstract readonly modelName: string;
   abstract readonly maxContextTokens: number;
 
-  abstract chat(messages: LLMMessage[], tools?: any[]): Promise<ChatResponse>;
+  abstract chat(messages: LLMMessage[], tools?: ToolDefinition[]): Promise<ChatResponse>;
 
   abstract countTokens(text: string): number;
 }

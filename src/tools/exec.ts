@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import fs from 'fs-extra';
 import path from 'path';
 import { loadIgnoreFilter } from './ignore.js';
@@ -9,13 +9,35 @@ export function setCwd(newCwd: string) {
   cwd = newCwd;
 }
 
+const EXECUTABLE_WHITELIST = ['npm', 'git', 'pytest', 'eslint', 'prettier'];
+
+interface ToolArgs {
+  command?: string;
+  cwd?: string;
+  path?: string;
+  content?: string;
+  old_string?: string;
+  new_string?: string;
+  pattern?: string;
+  directory?: string;
+  filePath?: string;
+  linter?: string;
+  testCommand?: string;
+  executable?: string;
+  args?: string[];
+  formatter?: string;
+  manager?: string;
+  packages?: string[] | string;
+  gitArgs?: string;
+}
+
 /**
  * Execute a built‑in tool call by name.
  * Returns a string with the result or an error message.
  */
 export async function executeToolCall(
   name: string,
-  args: Record<string, any>
+  args: ToolArgs
 ): Promise<string> {
   switch (name) {
     // -----------------------------------------------------------------------
@@ -40,7 +62,7 @@ export async function executeToolCall(
     // FILE READING
     // -----------------------------------------------------------------------
     case 'file_read': {
-      const filePath = path.resolve(args.path);
+      const filePath = path.resolve(args.path as string);
       try {
         const ignoreFilter = await loadIgnoreFilter(cwd);
         if (ignoreFilter.ignores(path.relative(cwd, filePath))) {
@@ -48,8 +70,9 @@ export async function executeToolCall(
         }
         const content = await fs.readFile(filePath, 'utf8');
         return content;
-      } catch (e: any) {
-        return `Error: ${e.message}`;
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        return `Error: ${errMsg}`;
       }
     }
 
@@ -57,16 +80,17 @@ export async function executeToolCall(
     // FILE WRITING (overwrite)
     // -----------------------------------------------------------------------
     case 'file_write': {
-      const filePath = path.resolve(args.path);
+      const filePath = path.resolve(args.path as string);
       const ignoreFilter = await loadIgnoreFilter(cwd);
       if (ignoreFilter.ignores(path.relative(cwd, filePath))) {
         return `Error: Path "${filePath}" is ignored.`;
       }
       try {
-        await fs.outputFile(filePath, args.content, 'utf8');
+        await fs.outputFile(filePath, args.content as string, 'utf8');
         return `File written: ${filePath}`;
-      } catch (e: any) {
-        return `Error: ${e.message}`;
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        return `Error: ${errMsg}`;
       }
     }
 
@@ -74,21 +98,22 @@ export async function executeToolCall(
     // FILE EDIT (replace first occurrence of a string)
     // -----------------------------------------------------------------------
     case 'file_edit': {
-      const filePath = path.resolve(args.path);
+      const filePath = path.resolve(args.path as string);
       const ignoreFilter = await loadIgnoreFilter(cwd);
       if (ignoreFilter.ignores(path.relative(cwd, filePath))) {
         return `Error: Path "${filePath}" is ignored.`;
       }
       try {
         let content = await fs.readFile(filePath, 'utf8');
-        if (!content.includes(args.old_string)) {
+        if (!content.includes(args.old_string as string)) {
           return `Error: old_string not found in file.`;
         }
-        content = content.replace(args.old_string, args.new_string);
+        content = content.replace(args.old_string as string, args.new_string as string);
         await fs.writeFile(filePath, content, 'utf8');
         return `File edited: ${filePath}`;
-      } catch (e: any) {
-        return `Error: ${e.message}`;
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        return `Error: ${errMsg}`;
       }
     }
 
@@ -116,8 +141,9 @@ export async function executeToolCall(
         };
         await walk(searchDir);
         return results.length ? results.join('\n') : 'No files found.';
-      } catch (e: any) {
-        return `Error: ${e.message}`;
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        return `Error: ${errMsg}`;
       }
     }
 
@@ -156,8 +182,9 @@ export async function executeToolCall(
         };
         await walk(searchDir);
         return results.length ? results.join('\n') : 'No matches found.';
-      } catch (e: any) {
-        return `Error: ${e.message}`;
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        return `Error: ${errMsg}`;
       }
     }
 
@@ -188,7 +215,7 @@ export async function executeToolCall(
       if (!testCommand) return 'Error: testCommand required.';
       return new Promise((resolve) => {
         exec(
-          testCommand,
+          testCommand as string,
           { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024 },
           (err, stdout, stderr) => {
             if (err)
@@ -196,6 +223,29 @@ export async function executeToolCall(
                 `Tests failed:\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`
               );
             else resolve(stdout || 'All tests passed.');
+          }
+        );
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // EXEC FILE (whitelist-restricted)
+    // -----------------------------------------------------------------------
+    case 'exec_file': {
+      const executable = args.executable;
+      const execArgs = args.args || [];
+      if (!executable) return 'Error: executable not specified.';
+      if (!EXECUTABLE_WHITELIST.includes(executable)) {
+        return `Error: executable "${executable}" is not allowed.`;
+      }
+      return new Promise((resolve) => {
+        execFile(
+          executable,
+          execArgs,
+          { cwd: args.cwd || cwd, maxBuffer: 10 * 1024 * 1024 },
+          (err, stdout, stderr) => {
+            if (err) resolve(`Error: ${err.message}\n${stderr}`);
+            else resolve(stdout || stderr || '(no output)');
           }
         );
       });
@@ -271,12 +321,14 @@ export async function executeToolCall(
     // CREATE DIRECTORY
     // -----------------------------------------------------------------------
     case 'create_directory': {
-      const dirPath = path.resolve(args.path);
+      if (!args.path) return 'Error: path required for create_directory';
+      const dirPath = path.resolve(args.path as string);
       try {
         await fs.ensureDir(dirPath);
         return `Directory created: ${dirPath}`;
-      } catch (e: any) {
-        return `Error: ${e.message}`;
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        return `Error: ${errMsg}`;
       }
     }
 
@@ -284,7 +336,8 @@ export async function executeToolCall(
     // DELETE FILE OR DIRECTORY
     // -----------------------------------------------------------------------
     case 'delete_file_or_dir': {
-      const targetPath = path.resolve(args.path);
+      if (!args.path) return 'Error: path required for delete_file_or_dir';
+      const targetPath = path.resolve(args.path as string);
       const ignoreFilter = await loadIgnoreFilter(cwd);
       if (ignoreFilter.ignores(path.relative(cwd, targetPath))) {
         return `Error: Path "${targetPath}" is ignored.`;
@@ -292,8 +345,9 @@ export async function executeToolCall(
       try {
         await fs.remove(targetPath);
         return `Deleted: ${targetPath}`;
-      } catch (e: any) {
-        return `Error: ${e.message}`;
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        return `Error: ${errMsg}`;
       }
     }
 

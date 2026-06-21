@@ -1,5 +1,6 @@
 import { LLMMessage, ToolCall } from '../providers/base.js';
 import { executeToolCall } from '../tools/exec.js';
+import { logger } from '../utils/logger.js';
 
 function summarizeOutput(output: string): string {
   if (output.length <= 300) return output;
@@ -18,7 +19,7 @@ export async function processToolCalls(
       fnArgs = JSON.parse(toolCall.function.arguments);
     } catch (error) {
       const message = `Error: Invalid tool arguments for ${fnName}: ${error instanceof Error ? error.message : String(error)}`;
-      console.error(message);
+      logger.error(message);
       messages.push({
         role: 'tool',
         tool_call_id: toolCall.id,
@@ -28,7 +29,7 @@ export async function processToolCalls(
       continue;
     }
 
-    console.log(`⚙ Executing ${fnName}(${Object.entries(fnArgs)
+    logger.info(`⚙ Executing ${fnName}(${Object.entries(fnArgs)
       .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
       .join(', ')})...`);
 
@@ -39,7 +40,7 @@ export async function processToolCalls(
       result = `Error: ${error instanceof Error ? error.message : String(error)}`;
     }
 
-    console.log(summarizeOutput(result));
+    logger.info(summarizeOutput(result));
     messages.push({
       role: 'tool',
       tool_call_id: toolCall.id,

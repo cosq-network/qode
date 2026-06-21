@@ -1,4 +1,5 @@
 import { loadConfig } from '../config.js';
+import { logger } from '../utils/logger.js';
 
 const MODEL_ALIASES: Record<string, string> = {
   'Big Pickle': 'big-pickle',
@@ -11,23 +12,23 @@ const DEFAULT_MODELS: Record<string, string[]> = {
   'DeepSeek API': ['DeepSeek V4-Pro', 'DeepSeek V4-Flash'],
   'OpenRouter': ['Laguna M.1 (Poolside)', 'Qwen3-Coder', 'gpt-oss-120b'],
   'GroqCloud': ['Qwen3 (32B)', 'Llama 4 Scout (17B)'],
-  'OpenCode Zen': ['Big Pickle'],
+  'OpenCode Zen': ['Big Pickle', 'deepseek-v4-flash-free', 'nemotron-3-ultra-free', 'qwen3-5-plus'],
 };
 
 export async function listModels(): Promise<void> {
   const config = await loadConfig();
-  console.log('\nAvailable models by provider:\n');
+  logger.info('\nAvailable models by provider:\n');
   for (const [provider, models] of Object.entries(DEFAULT_MODELS)) {
     const hasKey = !!config.providers[provider]?.apiKey;
-    console.log(`${provider} ${hasKey ? '✓' : '✗ (no API key)'}`);
-    models.forEach((m) => console.log(`  - ${m}`));
+    logger.info(`${provider} ${hasKey ? '✓' : '✗ (no API key)'}`);
+    models.forEach((m) => logger.info(`  - ${m}`));
   }
 }
 
 export async function updateModels(): Promise<void> {
-  console.log('Fetching live model lists from provider APIs...');
+  logger.info('Fetching live model lists from provider APIs...');
   // This would need real implementations per provider. For brevity, fallback.
-  console.log('(Not implemented in this example – using built-in list)');
+  logger.info('(Not implemented in this example – using built-in list)');
   listModels();
 }
 

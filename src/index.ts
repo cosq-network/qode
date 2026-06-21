@@ -2,11 +2,11 @@
 import { Command } from 'commander';
 import { startChatLoop } from './chat/loop.js';
 import { listModels, updateModels } from './providers/models.js';
-import { configureAuth } from './config.js';
 import { logger } from './utils/logger.js';
+
 import { listSessions, deleteSession } from './utils/storage.js';
 
-const program = new Command();
+export const program = new Command();
 
 program
   .name('cosqcode')
@@ -58,7 +58,7 @@ program
         return;
       }
     }
-    await configureAuth();
+    await import('./config.js').then(m => m.configureAuth());
   });
 
 // session management

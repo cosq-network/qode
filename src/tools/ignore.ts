@@ -2,13 +2,13 @@ import path from 'path';
 import fs from 'fs-extra';
 import ignore from 'ignore';
 
-const { default: ignoreFactory } = ignore;
+const ignoreFactory = ignore;
 
 // Patterns always ignored
 const ALWAYS_IGNORE = ['node_modules/**', '.git/**', '.cosqcode/**'];
 
 export async function loadIgnoreFilter(cwd: string) {
-  const ig = ignoreFactory();
+  const ig = ignore();
   ig.add(ALWAYS_IGNORE);
 
   // Load .gitignore

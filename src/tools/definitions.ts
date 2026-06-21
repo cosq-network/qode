@@ -232,3 +232,4 @@ export const TOOL_DEFINITIONS = [
     },
   },
 ];
+export type ToolDefinition = typeof TOOL_DEFINITIONS[number];
