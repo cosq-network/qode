@@ -70,7 +70,7 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
     if (linesAccumulator.length > 0 && trimmed === '/cancel') {
       linesAccumulator = [];
       logger.info('Multiline input cancelled.');
-      rl.setPrompt('> ');
+      rl.setPrompt(getPromptString(session));
       await promptNext(session, rl, config);
       return;
     }
@@ -80,7 +80,7 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
       linesAccumulator.push(input);
       trimmed = linesAccumulator.join('\n').trim();
       linesAccumulator = []; // reset
-      rl.setPrompt('> '); // restore prompt
+      rl.setPrompt(getPromptString(session)); // restore prompt
     }
 
     if (trimmed === '/exit') {
@@ -470,7 +470,14 @@ async function activateSkills(prompt: string, session: Session): Promise<void> {
 
 async function promptNext(session: Session, rl: readline.Interface, config: any): Promise<void> {
   await renderStatusHeader(session, process.cwd(), config.theme);
+  rl.setPrompt(getPromptString(session));
   rl.prompt();
+}
+
+function getPromptString(session: Session): string {
+  const model = session.modelName;
+  const providerName = session.provider?.providerName || 'N/A';
+  return `\x1b[36m[${model} (${providerName})]\x1b[0m > `;
 }
 
 async function renderStatusHeader(session: Session, cwd: string, themeName?: string): Promise<void> {
