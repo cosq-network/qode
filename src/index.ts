@@ -1,12 +1,22 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import ora from 'ora';
 import { startChatLoop } from './chat/loop.js';
 import { listModels, updateModels } from './providers/models.js';
 import { logger } from './utils/logger.js';
-
 import { listSessions, deleteSession } from './utils/storage.js';
 
 export const program = new Command();
+
+// Global options
+program
+  .option('--json', 'Output machine‑readable JSON (for AI agents)')
+  .option('--log-level <level>', 'Set log level (error, info, debug)', 'info')
+  .hook('preAction', (thisCommand) => {
+    const opts = thisCommand.opts();
+    (globalThis as any).JSON_OUTPUT = Boolean(opts.json);
+    (globalThis as any).LOG_LEVEL = opts.logLevel || 'info';
+  });
 
 program
   .name('qode')
@@ -52,7 +62,6 @@ program
         { type: 'confirm', name: 'ok', message: 'Delete all stored API keys?', default: false },
       ]));
       if (confirm.ok) {
-        // Clear all providers config
         await import('./config.js').then(m => m.saveConfig({ providers: {}, autoCompress: true, compressThreshold: 0.8, mcpServers: [] }));
         console.log('All credentials cleared.');
         return;

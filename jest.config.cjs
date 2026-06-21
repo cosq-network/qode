@@ -17,4 +17,7 @@ module.exports = {
       },
     ],
   },
+  // Ensure ESM packages like chalk are transformed
+  transformIgnorePatterns: ['/node_modules/(?!chalk)'],
 };
+
