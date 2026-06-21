@@ -1,6 +1,6 @@
 import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
-import { loadConfig } from '../config.js';
+import { loadConfig, saveConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { loadSession, saveSession, listSessions } from '../utils/storage.js';
 import { Session } from './session.js';
@@ -10,6 +10,7 @@ import { processTurn } from './processor.js';
 import { loadSkills, matchSkills } from '../utils/skills.js';
 import { fetchRegistry, searchRegistry, installSkill } from '../utils/registry.js';
 import { getRecentFiles } from '../utils/files.js';
+import { getTheme, THEMES } from '../utils/themes.js';
 
 export async function startChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
   const config = await loadConfig();
@@ -46,7 +47,7 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
 
   logger.info(`Working directory: ${process.cwd()}`);
   logger.info('Type /help for commands, /exit to quit.');
-  await promptNext(session, rl);
+  await promptNext(session, rl, config);
 
   rl.on('line', async (input) => {
     const trimmed = input.trim();
@@ -65,9 +66,10 @@ Commands:
   /sessions                   List saved sessions
   /save                       Save current session
   /skills                     Manage skills (list, search, install, list-local)
+  /theme [name]               List or switch CLI visual themes
   /exit                       Quit
       `);
-      await promptNext(session, rl);
+      await promptNext(session, rl, config);
       return;
     }
 
@@ -81,7 +83,7 @@ Commands:
         session.modelName = newModel;
         logger.info(`Switched to ${newModel}`);
       }
-      await promptNext(session, rl);
+      await promptNext(session, rl, config);
       return;
     }
 
@@ -109,12 +111,11 @@ Commands:
           } catch (e: unknown) {
             const errMsg = e instanceof Error ? e.message : String(e);
             logger.error(`Error reading ${fp}: ${errMsg}`);
-// removed duplicate error log
           }
         }
         await saveSession(session.id, session.toJSON());
       }
-      await promptNext(session, rl);
+      await promptNext(session, rl, config);
       return;
     }
 
@@ -132,32 +133,32 @@ Commands:
         await processTurn(session, engine);
         await saveSession(session.id, session.toJSON());
       }
-      await promptNext(session, rl);
+      await promptNext(session, rl, config);
       return;
     }
 
     if (trimmed === '/compress') {
       await session.compressIfNeeded();
       await saveSession(session.id, session.toJSON());
-      await promptNext(session, rl);
+      await promptNext(session, rl, config);
       return;
     }
     if (trimmed === '/clear') {
       session.messages = [session.messages[0]]; // keep system
       logger.info('Conversation cleared.');
       await saveSession(session.id, session.toJSON());
-      await promptNext(session, rl);
+      await promptNext(session, rl, config);
       return;
     }
     if (trimmed === '/sessions') {
       await listSessions();
-      await promptNext(session, rl);
+      await promptNext(session, rl, config);
       return;
     }
     if (trimmed === '/save') {
       await saveSession(session.id, session.toJSON());
       logger.info('Session saved.');
-      await promptNext(session, rl);
+      await promptNext(session, rl, config);
       return;
     }
 
@@ -237,7 +238,27 @@ Skills Commands:
       } else {
         logger.info(`Unknown skills sub-command: ${subCommand}. Type /skills help for details.`);
       }
-      await promptNext(session, rl);
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    if (trimmed.startsWith('/theme')) {
+      const parts = trimmed.split(/\s+/);
+      const chosenTheme = parts[1];
+      if (!chosenTheme) {
+        logger.info(`Current theme: \x1b[36m${config.theme || 'default'}\x1b[0m`);
+        logger.info(`Available themes: ${Object.keys(THEMES).join(', ')}`);
+      } else {
+        const themeLower = chosenTheme.toLowerCase();
+        if (THEMES[themeLower]) {
+          config.theme = themeLower;
+          await saveConfig(config);
+          logger.info(`Theme switched to \x1b[36m${themeLower}\x1b[0m`);
+        } else {
+          logger.info(`Unknown theme "${chosenTheme}". Available: ${Object.keys(THEMES).join(', ')}`);
+        }
+      }
+      await promptNext(session, rl, config);
       return;
     }
 
@@ -246,7 +267,7 @@ Skills Commands:
     session.addMessage({ role: 'user', content: trimmed });
     await processTurn(session, engine);
     await saveSession(session.id, session.toJSON());
-    await promptNext(session, rl);
+    await promptNext(session, rl, config);
   });
 
   rl.on('close', async () => {
@@ -278,12 +299,14 @@ async function activateSkills(prompt: string, session: Session): Promise<void> {
   }
 }
 
-async function promptNext(session: Session, rl: readline.Interface): Promise<void> {
-  await renderStatusHeader(session, process.cwd());
+async function promptNext(session: Session, rl: readline.Interface, config: any): Promise<void> {
+  await renderStatusHeader(session, process.cwd(), config.theme);
   rl.prompt();
 }
 
-async function renderStatusHeader(session: Session, cwd: string): Promise<void> {
+async function renderStatusHeader(session: Session, cwd: string, themeName?: string): Promise<void> {
+  const t = getTheme(themeName);
+  const reset = '\x1b[0m';
   const model = session.modelName;
   const providerName = session.provider?.providerName || 'N/A';
   
@@ -308,16 +331,14 @@ async function renderStatusHeader(session: Session, cwd: string): Promise<void> 
   }
 
   const border = '─'.repeat(78);
-  console.log(`\n┌${border}┐`);
-  console.log(`│ 🤖 Model: \x1b[36m${model}\x1b[0m (${providerName})`);
-  console.log(`│ 📁 Directory: \x1b[33m${cwd}\x1b[0m`);
-  console.log(`│ 📊 Context usage: \x1b[32m${consumedTokens}\x1b[0m / ${maxTokens} tokens (${pctUsed}%)`);
+  console.log(`\n${t.borderChar}┌${border}┐${reset}`);
+  console.log(`${t.borderChar}│${reset} 🤖 Model: ${t.model}${model}${reset} (${providerName})`);
+  console.log(`${t.borderChar}│${reset} 📁 Directory: ${t.dir}${cwd}${reset}`);
+  console.log(`${t.borderChar}│${reset} 📊 Context usage: ${t.context}${consumedTokens}${reset} / ${maxTokens} tokens (${pctUsed}%)`);
   if (recentFiles.length > 0) {
-    console.log(`│ 🕒 Recent edits: ${recentFiles.map(f => `\x1b[35m${f}\x1b[0m`).join(', ')}`);
+    console.log(`${t.borderChar}│${reset} 🕒 Recent edits: ${recentFiles.map(f => `${t.files}${f}${reset}`).join(', ')}`);
   } else {
-    console.log(`│ 🕒 Recent edits: None`);
+    console.log(`${t.borderChar}│${reset} 🕒 Recent edits: None`);
   }
-  console.log(`└${border}┘`);
+  console.log(`${t.borderChar}└${border}┘${reset}`);
 }
-
-

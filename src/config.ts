@@ -20,6 +20,7 @@ export interface CosqcodeConfig {
   autoCompress: boolean;
   compressThreshold: number;
   mcpServers?: MCPServerConfig[];
+  theme?: string;
 }
 
 const CONFIG_DIR = path.join(os.homedir(), '.cosqcode');
