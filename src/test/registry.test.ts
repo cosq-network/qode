@@ -70,6 +70,17 @@ describe('Skills Registry', () => {
       const result = await fetchRegistry();
       expect(result).toEqual([]);
     });
+
+    test('falls back to cache if fetch fails and cache exists', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network failure'));
+      mockedFs.pathExists.mockResolvedValueOnce(true as never);
+      mockedFs.readJson.mockResolvedValueOnce(dummyRegistry.skills as never);
+
+      const result = await fetchRegistry();
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe('React Testing');
+      expect(mockedFs.readJson).toHaveBeenCalled();
+    });
   });
 
   describe('searchRegistry', () => {

@@ -1,5 +1,5 @@
 // src/test/themes.test.ts
-import { getTheme, THEMES } from '../utils/themes.js';
+import { getTheme, THEMES, ICONS } from '../utils/themes.js';
 
 describe('Themes system', () => {
   test('returns default theme when name is missing or invalid', () => {
@@ -26,5 +26,15 @@ describe('Themes system', () => {
     expect(THEMES.monochrome).toBeDefined();
     expect(THEMES.sunset).toBeDefined();
     expect(THEMES.forest).toBeDefined();
+  });
+
+  test('defines ICONS with standard emoji or ASCII fallback strings', () => {
+    expect(ICONS).toBeDefined();
+    expect(ICONS.robot).toBeDefined();
+    expect(ICONS.dir).toBeDefined();
+    expect(ICONS.file).toBeDefined();
+    expect(ICONS.chart).toBeDefined();
+    expect(ICONS.clock).toBeDefined();
+    expect(ICONS.keyboard).toBeDefined();
   });
 });

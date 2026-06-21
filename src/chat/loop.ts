@@ -1,4 +1,5 @@
 import * as readline from 'readline';
+import { exec } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
 import { loadConfig, saveConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
@@ -10,8 +11,9 @@ import { processTurn } from './processor.js';
 import { loadSkills, matchSkills } from '../utils/skills.js';
 import { fetchRegistry, searchRegistry, installSkill } from '../utils/registry.js';
 import { getRecentFiles } from '../utils/files.js';
-import { getTheme, THEMES } from '../utils/themes.js';
+import { getTheme, THEMES, ICONS } from '../utils/themes.js';
 import { copyToClipboard, pasteFromClipboard } from '../utils/clipboard.js';
+import { FileBrowser } from '../utils/browser.js';
 import path from 'path';
 import fs from 'fs-extra';
 
@@ -49,6 +51,8 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
     completer,
   });
 
+  const fileBrowser = new FileBrowser(rl);
+
   logger.info(`Working directory: ${process.cwd()}`);
   logger.info('Type /help for commands, /exit to quit.');
   await promptNext(session, rl, config);
@@ -83,6 +87,17 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
       rl.setPrompt(getPromptString(session)); // restore prompt
     }
 
+    if (trimmed.startsWith('!')) {
+      const shellCmd = trimmed.slice(1).trim();
+      if (!shellCmd) {
+        logger.info('Usage: !<command>');
+      } else {
+        await executeShellCommand(shellCmd);
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
     if (trimmed === '/exit') {
       rl.close();
       return;
@@ -102,6 +117,7 @@ Commands:
   /status                     Show session dashboard (tokens, duration, changed files)
   /copy                       Copy last response to clipboard
   /paste                      Paste clipboard content as prompt
+  !<command>                   Execute a shell command (e.g. !ls -la)
   /exit                       Quit
       `);
       await promptNext(session, rl, config);
@@ -403,7 +419,14 @@ Skills Commands:
   });
 
   const keypressHandler = async (str: string, key: any) => {
+    const handled = await fileBrowser.handleKeyPress(str, key);
+    if (handled) return;
+
     if (key && key.ctrl) {
+      if (key.name === 'f') {
+        await fileBrowser.start(keypressHandler);
+        return;
+      }
       if (key.name === 'k') {
         const assistantMessages = session.messages.filter(m => m.role === 'assistant');
         if (assistantMessages.length === 0) {
@@ -444,6 +467,46 @@ Skills Commands:
     await engine.close();
     logger.info('Goodbye!');
     process.exit(0);
+  });
+}
+
+export async function executeShellCommand(shellCmd: string): Promise<void> {
+  const isDestructive = /\b(rm\s+-rf|rm\s+-f\s+\*|dd\s+if|mkfs|chmod\s+-R\s+777|chown\s+-R)\b/.test(shellCmd);
+  if (isDestructive) {
+    logger.error("WARNING: Dangerous or destructive command pattern detected. Operation blocked for safety.");
+    return;
+  }
+
+  const cdMatch = shellCmd.match(/^cd\s*(.*)$/);
+  if (cdMatch) {
+    let targetDir = cdMatch[1].trim();
+    if (!targetDir || targetDir === '~') {
+      targetDir = process.env.HOME || '.';
+    } else if (targetDir.startsWith('~/')) {
+      targetDir = path.join(process.env.HOME || '.', targetDir.slice(2));
+    }
+    try {
+      process.chdir(path.resolve(process.cwd(), targetDir));
+      setCwd(process.cwd());
+    } catch (err: any) {
+      logger.error(`cd: ${err.message}`);
+    }
+    return;
+  }
+
+  return new Promise<void>((resolve) => {
+    exec(shellCmd, { cwd: process.cwd() }, (error, stdout, stderr) => {
+      if (stdout) {
+        process.stdout.write(stdout);
+      }
+      if (stderr) {
+        process.stderr.write(stderr);
+      }
+      if (error && !stderr) {
+        logger.error(error.message);
+      }
+      resolve();
+    });
   });
 }
 
@@ -508,16 +571,16 @@ async function renderStatusHeader(session: Session, cwd: string, themeName?: str
 
   const border = '─'.repeat(78);
   console.log(`\n${t.borderChar}┌${border}┐${reset}`);
-  console.log(`${t.borderChar}│${reset} 🤖 Model: ${t.model}${model}${reset} (${providerName})`);
-  console.log(`${t.borderChar}│${reset} 📁 Directory: ${t.dir}${cwd}${reset}`);
-  console.log(`${t.borderChar}│${reset} 📊 Context usage: ${t.context}${consumedTokens}${reset} / ${maxTokens} tokens (${pctUsed}%)`);
+  console.log(`${t.borderChar}│${reset} ${ICONS.robot} Model: ${t.model}${model}${reset} (${providerName})`);
+  console.log(`${t.borderChar}│${reset} ${ICONS.dir} Directory: ${t.dir}${cwd}${reset}`);
+  console.log(`${t.borderChar}│${reset} ${ICONS.chart} Context usage: ${t.context}${consumedTokens}${reset} / ${maxTokens} tokens (${pctUsed}%)`);
   if (recentFiles.length > 0) {
-    console.log(`${t.borderChar}│${reset} 🕒 Recent edits: ${recentFiles.map(f => `${t.files}${f}${reset}`).join(', ')}`);
+    console.log(`${t.borderChar}│${reset} ${ICONS.clock} Recent edits: ${recentFiles.map(f => `${t.files}${f}${reset}`).join(', ')}`);
   } else {
-    console.log(`${t.borderChar}│${reset} 🕒 Recent edits: None`);
+    console.log(`${t.borderChar}│${reset} ${ICONS.clock} Recent edits: None`);
   }
   console.log(`${t.borderChar}├${border}┤${reset}`);
-  console.log(`${t.borderChar}│${reset} ⌨ Tab = Autocomplete | Ctrl+K = Copy Response | Ctrl+G = Paste Prompt`);
+  console.log(`${t.borderChar}│${reset} ${ICONS.keyboard} Tab = Autocomplete | Ctrl+F = File Browser | Ctrl+K = Copy | Ctrl+G = Paste`);
   console.log(`${t.borderChar}└${border}┘${reset}`);
 }
 

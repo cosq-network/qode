@@ -57,3 +57,16 @@ export function getTheme(name?: string): ThemePalette {
   }
   return THEMES.default;
 }
+
+const isWindows = process.platform === 'win32';
+const hasWT = !!process.env.WT_SESSION;
+const supportsEmoji = !isWindows || hasWT || process.env.TERM_PROGRAM === 'vscode' || process.env.TERM === 'xterm-256color';
+
+export const ICONS = {
+  robot: supportsEmoji ? '🤖' : 'AI',
+  dir: supportsEmoji ? '📁' : 'DIR',
+  file: supportsEmoji ? '📄' : 'FILE',
+  chart: supportsEmoji ? '📊' : 'INFO',
+  clock: supportsEmoji ? '🕒' : 'TIME',
+  keyboard: supportsEmoji ? '⌨' : 'KEYS',
+};

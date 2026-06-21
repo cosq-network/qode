@@ -17,6 +17,9 @@ export interface RegistryData {
 
 export const DEFAULT_REGISTRY_URL = 'https://raw.githubusercontent.com/cosqcode/skills-registry/main/registry.json';
 
+const CACHE_DIR = path.join(os.homedir(), '.cosqcode');
+const CACHE_FILE = path.join(CACHE_DIR, 'registry-cache.json');
+
 export async function fetchRegistry(url = DEFAULT_REGISTRY_URL): Promise<RegistrySkill[]> {
   try {
     const res = await fetch(url);
@@ -24,9 +27,29 @@ export async function fetchRegistry(url = DEFAULT_REGISTRY_URL): Promise<Registr
       throw new Error(`HTTP error! status: ${res.status}`);
     }
     const data = (await res.json()) as RegistryData;
-    return data.skills || [];
+    const skills = data.skills || [];
+
+    try {
+      await fs.ensureDir(CACHE_DIR);
+      await fs.writeJson(CACHE_FILE, skills, { spaces: 2 });
+    } catch (cacheWriteError: any) {
+      // Quietly ignore cache write errors
+    }
+
+    return skills;
   } catch (error: any) {
     logger.error(`Failed to fetch skill registry: ${error.message}`);
+
+    try {
+      if (await fs.pathExists(CACHE_FILE)) {
+        const cached = await fs.readJson(CACHE_FILE);
+        logger.info(`ℹ Offline mode: using cached skill registry from local directory.`);
+        return cached;
+      }
+    } catch (cacheReadError: any) {
+      logger.error(`Failed to read registry cache: ${cacheReadError.message}`);
+    }
+
     return [];
   }
 }
