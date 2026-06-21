@@ -9,7 +9,7 @@ export class Session {
   public provider!: LLMProvider;
   public createdAt: string;
   public lastAccessed: string;
-  private systemPrompt: string;
+  public systemPrompt: string;
 
   constructor(
     id: string,
