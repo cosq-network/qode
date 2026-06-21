@@ -46,7 +46,7 @@ export async function configureAuth(): Promise<void> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const question = (q: string) => new Promise<string>((res) => rl.question(q, res));
 
-  for (const provider of ['Google AI Studio', 'GitHub Models', 'DeepSeek API', 'OpenRouter', 'GroqCloud']) {
+  for (const provider of ['Google AI Studio', 'GitHub Models', 'DeepSeek API', 'OpenRouter', 'GroqCloud', 'OpenCode Zen']) {
     const key = await question(`${provider} API key (ENTER to skip): `);
     if (key.trim()) {
       config.providers[provider] = { apiKey: key.trim() };

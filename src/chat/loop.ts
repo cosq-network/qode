@@ -35,6 +35,7 @@ async function createProvider(modelName: string, config: any): Promise<LLMProvid
         case 'OpenRouter': baseURL = 'https://openrouter.ai/api/v1'; break;
         case 'GroqCloud': baseURL = 'https://api.groq.com/openai/v1'; break;
         case 'GitHub Models': baseURL = 'https://models.inference.ai.azure.com'; break;
+        case 'OpenCode Zen': baseURL = 'https://opencode.ai/zen/v1'; break;
         default: baseURL = 'https://api.openai.com/v1';
       }
     }
