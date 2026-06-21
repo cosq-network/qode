@@ -12,7 +12,10 @@ const DEFAULT_MODELS: Record<string, string[]> = {
   'DeepSeek API': ['DeepSeek V4-Pro', 'DeepSeek V4-Flash'],
   'OpenRouter': ['Laguna M.1 (Poolside)', 'Qwen3-Coder', 'gpt-oss-120b'],
   'GroqCloud': ['Qwen3 (32B)', 'Llama 4 Scout (17B)'],
+  'OpenCode': ['big-pickle', 'deepseek-v4-flash-free', 'mimo-v2-5-free', 'nemotron-3-ultra-free', 'north-mini-code-free'],
   'OpenCode Zen': ['Big Pickle', 'deepseek-v4-flash-free', 'nemotron-3-ultra-free', 'qwen3-5-plus'],
+  'Z.ai': ['GLM-4.7-Flash', 'GLM-5.2'],
+  'OpenAI': ['gpt-5-mini'],
 };
 
 export async function listModels(): Promise<void> {

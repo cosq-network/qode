@@ -143,6 +143,57 @@ High-speed execution of open-weight developer models.
 
 ---
 
+### 7. OpenCode (Free)
+OpenCode provides free, open-source models for coding and tooling tasks.
+- **Required Env Var**: none (no API key needed)
+- **Supported Models**:
+  - `big-pickle`
+  - `deepseek-v4-flash-free`
+  - `mimo-v2-5-free`
+  - `nemotron-3-ultra-free`
+  - `north-mini-code-free`
+
+---
+## Pricing, Limits & Quotas
+
+### 8. Z.ai (GLM)
+Z.ai provides large language models for coding and general tasks.
+- **Required Env Var**: `ZAI_API_KEY`
+- **Supported Models**:
+  - `GLM-4.7-Flash`
+  - `GLM-5.2`
+
+Below is a quick reference matrix for the integrated model providers, covering typical token pricing (USD per 1 M tokens), context window limits, maximum output lengths, and approximate rate limits (requests per minute). Prices and limits are subject to change; always verify on the provider’s official pricing page.
+| Provider | Model | Input Price (USD/1M) | Output Price (USD/1M) | Context Window | Max Output | Approx. RPM* |
+|---|---|---|---|---|---|---|
+| OpenCode (Free) | big-pickle | $0.00 | $0.00 | 200,000 | 65,536 | Unlimited |
+| OpenCode (Free) | deepseek-v4-flash-free | $0.00 | $0.00 | 200,000 | 65,536 | Unlimited |
+| OpenCode (Free) | mimo-v2-5-free | $0.00 | $0.00 | 200,000 | 65,536 | Unlimited |
+| OpenCode (Free) | nemotron-3-ultra-free | $0.00 | $0.00 | 200,000 | 65,536 | Unlimited |
+| OpenCode (Free) | north-mini-code-free | $0.00 | $0.00 | 200,000 | 65,536 | Unlimited |
+| Claude (Fable) | Claude Fable 5 | $10.00 | $50.00 | 1,000,000 | 128,000 | Varied |
+| Claude (Haiku) | Claude Haiku 3.5 | $0.80 | $4.00 | 200,000 | 64,000 | Varied |
+| Claude (Haiku) | Claude Haiku 4.5 | $1.00 | $5.00 | 200,000 | 64,000 | Varied |
+| Claude (Sonnet) | Claude Sonnet 4.6 | $3.00 | $15.00 | 1,000,000 | 64,000 | Varied |
+| Z.ai (GLM) | GLM-4.7-Flash | $0.00 | $0.00 | 1,000,000 | 65,536 | Unlimited |
+| Z.ai (GLM) | GLM-5.2 | $1.40 | $4.40 | 1,000,000 | 131,072 | Varied |
+| Google AI Studio (Gemini) | Gemini 2.5 Flash | $0.30 | $2.50 | 1,048,576 | 65,536 | 5‑15 (Free), 150‑300 (Tier 1) |
+| Google AI Studio (Gemini) | Gemini 3.1 Pro | $2.00 | $12.00 | 1,048,576 | 65,536 | 5‑15 (Free), 150‑300 (Tier 1) |
+| OpenAI | gpt‑4o | $2.50 | $10.00 | 128,000† | 128,000† | 3,000 (standard) |
+| OpenAI | gpt‑4o‑mini | $0.15 | $0.60 | 128,000† | 128,000† | 3,000 (standard) |
+| DeepSeek API | DeepSeek V4 Pro | $1.74 (cache miss) / $0.145 (cache hit) | $3.48 | 1,048,576 | 384,000 | 60‑120 (typical) |
+| DeepSeek API | DeepSeek V4 Flash | $0.44 | $0.88 | 1,048,576 | 384,000 | 60‑120 |
+| OpenRouter | Various (e.g., Claude‑3.5‑Sonnet, Llama‑3.1‑405B) | Varies* | Varies* | Varies | Varies | Varies |
+| GroqCloud | llama‑3.3‑70b‑versatile, mixtral‑8x7b‑instruct‑32768, gemma2‑9b‑it | $0.00‑$0.10* | $0.00‑$0.10* | Up to 128k | Up to 128k | 10,000+ (high‑speed) |
+| GitHub Models | gpt‑4o, gpt‑4o‑mini, o1‑mini, meta‑llama‑3‑70b, cohere‑command‑r‑plus | Same as OpenAI | Same as OpenAI | Same as OpenAI | Same as OpenAI | Same as OpenAI |
+
+*RPM values are indicative and depend on your billing tier and project configuration.
+†Context limits for OpenAI models are based on the latest OpenAI documentation (≈128 k tokens).
+
+**Sources**: Gemini pricing [1][2], Gemini context [9][10]; OpenAI pricing [12][13]; DeepSeek pricing [5][6]; DeepSeek context [13]; Gemini rate limits [11]; OpenAI rate limits [13]; provider docs.
+
+---
+
 ## Prompt Usage & Interactive Features
 
 ### Multiline Input Accumulation

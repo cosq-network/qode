@@ -1,9 +1,20 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import ora from 'ora';
-import { startChatLoop } from './chat/loop.js';
-import { listModels, updateModels } from './providers/models.js';
 import { logger } from './utils/logger.js';
+import { startChatLoop } from './chat/loop.js';
+import { downloadQwenModel } from './commands/slash.js';
+logger.info('🔄 Initiating background download of Qwen model...');
+
+void (async () => {
+  try {
+    await downloadQwenModel();
+  } catch (e) {
+    logger.error(`Background Qwen model download failed: ${(e as Error).message}`);
+  }
+})();
+import { listModels, updateModels } from './providers/models.js';
+
 import { listSessions, deleteSession } from './utils/storage.js';
 
 export const program = new Command();

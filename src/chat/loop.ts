@@ -11,6 +11,7 @@ import { processTurn } from './processor.js';
 import { loadSkills, matchSkills } from '../utils/skills.js';
 import { fetchRegistry, searchRegistry, installSkill } from '../utils/registry.js';
 import { runWithSpinner } from '../utils/spinner.js';
+import { handleSlashCommand } from '../commands/slash.js';
 import { getRecentFiles } from '../utils/files.js';
 import { getTheme, THEMES, ICONS } from '../utils/themes.js';
 import { copyToClipboard, pasteFromClipboard } from '../utils/clipboard.js';
@@ -62,6 +63,12 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
 
   rl.on('line', async (input) => {
     let trimmed = input.trim();
+    // Check for slash commands first (e.g., /set-key, /clear-key, /download-qwen)
+    const handled = await handleSlashCommand(trimmed);
+    if (handled) {
+      await promptNext(session, rl, config);
+      return;
+    }
     // Multiline continuation check (backslash at the end of the line)
     const endsWithContinuation = input.endsWith('\\');
     if (endsWithContinuation) {
