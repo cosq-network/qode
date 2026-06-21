@@ -11,6 +11,7 @@ import { loadSkills, matchSkills } from '../utils/skills.js';
 import { fetchRegistry, searchRegistry, installSkill } from '../utils/registry.js';
 import { getRecentFiles } from '../utils/files.js';
 import { getTheme, THEMES } from '../utils/themes.js';
+import { copyToClipboard, pasteFromClipboard } from '../utils/clipboard.js';
 
 export async function startChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
   const config = await loadConfig();
@@ -49,8 +50,36 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
   logger.info('Type /help for commands, /exit to quit.');
   await promptNext(session, rl, config);
 
+  let linesAccumulator: string[] = [];
+
   rl.on('line', async (input) => {
-    const trimmed = input.trim();
+    let trimmed = input.trim();
+    // Multiline continuation check (backslash at the end of the line)
+    const endsWithContinuation = input.endsWith('\\');
+    if (endsWithContinuation) {
+      linesAccumulator.push(input.slice(0, -1)); // strip backslash
+      rl.setPrompt('... ');
+      rl.prompt();
+      return;
+    }
+
+    // Support multiline cancellation via /cancel
+    if (linesAccumulator.length > 0 && trimmed === '/cancel') {
+      linesAccumulator = [];
+      logger.info('Multiline input cancelled.');
+      rl.setPrompt('> ');
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    // Combine accumulated lines if any
+    if (linesAccumulator.length > 0) {
+      linesAccumulator.push(input);
+      trimmed = linesAccumulator.join('\n').trim();
+      linesAccumulator = []; // reset
+      rl.setPrompt('> '); // restore prompt
+    }
+
     if (trimmed === '/exit') {
       rl.close();
       return;
@@ -67,6 +96,8 @@ Commands:
   /save                       Save current session
   /skills                     Manage skills (list, search, install, list-local)
   /theme [name]               List or switch CLI visual themes
+  /copy                       Copy last response to clipboard
+  /paste                      Paste clipboard content as prompt
   /exit                       Quit
       `);
       await promptNext(session, rl, config);
@@ -259,6 +290,40 @@ Skills Commands:
         }
       }
       await promptNext(session, rl, config);
+      return;
+    }
+
+    if (trimmed === '/copy') {
+      const assistantMessages = session.messages.filter(m => m.role === 'assistant');
+      if (assistantMessages.length === 0) {
+        logger.info('No assistant messages found to copy.');
+      } else {
+        const lastResponse = assistantMessages[assistantMessages.length - 1].content || '';
+        const success = await copyToClipboard(lastResponse);
+        if (success) {
+          logger.info('✔ Last response copied to clipboard.');
+        } else {
+          logger.error('Failed to copy to clipboard.');
+        }
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    if (trimmed === '/paste') {
+      logger.info('Pasting prompt from system clipboard...');
+      const clipboardContent = await pasteFromClipboard();
+      if (!clipboardContent) {
+        logger.info('Clipboard is empty or could not be read.');
+        await promptNext(session, rl, config);
+      } else {
+        logger.info(`\n\x1b[90mPasted Content:\x1b[0m\n${clipboardContent}\n`);
+        await activateSkills(clipboardContent, session);
+        session.addMessage({ role: 'user', content: clipboardContent });
+        await processTurn(session, engine);
+        await saveSession(session.id, session.toJSON());
+        await promptNext(session, rl, config);
+      }
       return;
     }
 
