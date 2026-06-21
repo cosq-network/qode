@@ -1,3 +1,5 @@
+name: Node.js CI
+
 on:
   push:
     branches: [ main ]
@@ -64,12 +66,14 @@ jobs:
       - name: Pack npm package
         run: npm pack
 
+      - name: Publish to GitHub Packages
+        run: npm publish *.tgz --registry https://npm.pkg.github.com
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: '*.tgz'
-
-
 on:
   push:
     branches: [ main ]
