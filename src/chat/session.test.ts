@@ -1,8 +1,7 @@
 // src/chat/session.test.ts
-import { Session } from './session.js';
-import { LLMProvider } from '../providers/base.js';
-import { loadConfig } from '../config.js';
-import { logger } from '../utils/logger.js';
+const { Session } = require('./session');
+const { logger } = require('../utils/logger');
+const { loadConfig } = require('../config');
 
 // Mock logger to silence output during tests
 jest.mock('../utils/logger', () => ({
@@ -18,12 +17,20 @@ jest.mock('../config', () => ({
 }));
 
 // Simple mock provider
-class MockProvider implements LLMProvider {
-  providerName = 'MockProvider';
-  modelName = 'mock-model';
-  maxContextTokens = 10;
-  countTokens = jest.fn().mockReturnValue(3);
-  chat = jest.fn().mockResolvedValue({ message: { content: 'response' } });
+// Simple mock provider with explicit fields
+class MockProvider {
+  public providerName: string;
+  public modelName: string;
+  public maxContextTokens: number;
+  public countTokens: jest.Mock;
+  public chat: jest.Mock;
+  constructor() {
+    this.providerName = 'MockProvider';
+    this.modelName = 'mock-model';
+    this.maxContextTokens = 10;
+    this.countTokens = jest.fn().mockReturnValue(3);
+    this.chat = jest.fn().mockResolvedValue({ message: { content: 'response' } });
+  }
 }
 
 describe('Session', () => {
@@ -39,19 +46,14 @@ describe('Session', () => {
     const session = new Session('sess2', 'mock-model');
     const provider = new MockProvider();
     session.setProvider(provider);
-
     // add many user messages to exceed token limit (limit = maxContextTokens * threshold = 5)
     for (let i = 0; i < 5; i++) {
       session.addMessage({ role: 'user', content: 'abc' });
     }
-    // At this point totalTokens = 5*3 = 15 > limit 5, compression should run
     await session.compressIfNeeded();
-    // After compression, messages should contain system, summary, and last 4 messages (max 6 total)
     expect(session.messages.length).toBeLessThanOrEqual(6);
-    // The first message remains system prompt
     expect(session.messages[0].role).toBe('system');
-    // Summary should be a system message containing "Previous conversation summary"
     expect(session.messages[1].role).toBe('system');
-    expect((session.messages[1].content as string)).toContain('Previous conversation summary');
+    expect(session.messages[1].content).toContain('Previous conversation summary');
   });
 });

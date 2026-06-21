@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepublishOnly": "npm run build",
-    "test": "jest"
+    "test": "jest -c jest.config.cjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

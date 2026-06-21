@@ -1,17 +1,15 @@
 // src/chat/engine.test.ts
-import { ChatEngine } from './engine.js';
-import { loadConfig } from '../config.js';
-import { findModel } from '../providers/models.js';
-import { OpenAICompatProvider } from '../providers/openai-compat.js';
-import { GeminiProvider } from '../providers/gemini.js';
+const { ChatEngine } = require('./engine');
+const { loadConfig } = require('../config');
+const { findModel } = require('../providers/models');
+const { OpenAICompatProvider } = require('../providers/openai-compat');
+const { GeminiProvider } = require('../providers/gemini');
 
 // Mock configuration
 jest.mock('../config', () => ({
   loadConfig: jest.fn().mockResolvedValue({
     defaultModel: 'TestModel',
-    providers: {
-      'TestProvider': { apiKey: 'test-key' },
-    },
+    providers: { TestProvider: { apiKey: 'test-key' } },
     mcpServers: [],
   }),
 }));
@@ -34,6 +32,7 @@ jest.mock('../providers/openai-compat', () => ({
     chat: jest.fn().mockResolvedValue({ message: { content: 'ok' } }),
   })),
 }));
+
 jest.mock('../providers/gemini', () => ({
   GeminiProvider: jest.fn().mockImplementation(() => ({
     providerName: 'TestProvider',

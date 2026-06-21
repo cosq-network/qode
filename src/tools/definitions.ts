@@ -231,5 +231,714 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  // git_status
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_status',
+      description: 'Get a clean, structured status of the repository (modified, untracked, deleted files).',
+      parameters: {
+        type: 'object',
+        properties: {
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // git_diff
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_diff',
+      description: 'Retrieve the diff of unstaged changes (or changes between commits/branches).',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: { type: 'string', description: 'Limit diff to a specific file (optional)' },
+          staged: { type: 'boolean', description: 'Show staged changes instead (optional)' },
+          compareWith: { type: 'string', description: 'Compare with a specific commit or branch, e.g., HEAD~1 or main (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // git_log
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_log',
+      description: 'Retrieve the commit history.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', description: 'Maximum number of commits to return (default: 10)' },
+          filePath: { type: 'string', description: 'Filter commits affecting a specific file (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // git_blame
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_blame',
+      description: 'Show commit hash, author, and date for each line of a file.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: { type: 'string', description: 'The file path to blame' },
+          startLine: { type: 'integer', description: 'Start line number (optional, 1-indexed)' },
+          endLine: { type: 'integer', description: 'End line number (optional, 1-indexed)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['filePath'],
+      },
+    },
+  },
+  // git_discard_changes
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_discard_changes',
+      description: 'Discard unstaged changes in one or more files, or the entire repository.',
+      parameters: {
+        type: 'object',
+        properties: {
+          paths: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Paths of files to restore to their last committed state'
+          },
+          discardAllUnstaged: {
+            type: 'boolean',
+            description: 'Discard all unstaged changes in the repository (default: false)'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // git_manage_branch
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_manage_branch',
+      description: 'Create, switch, list, or delete branches.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['list', 'create', 'checkout', 'delete'],
+            description: 'Action to perform: list, create, checkout, or delete'
+          },
+          branchName: { type: 'string', description: 'Name of the branch to create, switch to, or delete (optional)' },
+          baseBranch: { type: 'string', description: 'Start point branch if creating a new branch (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  // git_commit
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_commit',
+      description: 'Stage files and commit them with a message.',
+      parameters: {
+        type: 'object',
+        properties: {
+          message: { type: 'string', description: 'The commit message' },
+          paths: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional list of files to stage first. If omitted and stageAll is false, commits already-staged files.'
+          },
+          stageAll: {
+            type: 'boolean',
+            description: 'Stage all modified files before committing (default: false)'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['message'],
+      },
+    },
+  },
+  // npm_list_dependencies
+  {
+    type: 'function' as const,
+    function: {
+      name: 'npm_list_dependencies',
+      description: 'Retrieve a list of the dependencies and devDependencies currently installed in the workspace.',
+      parameters: {
+        type: 'object',
+        properties: {
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // npm_audit
+  {
+    type: 'function' as const,
+    function: {
+      name: 'npm_audit',
+      description: 'Run security vulnerability audits on the installed dependencies (runs npm audit).',
+      parameters: {
+        type: 'object',
+        properties: {
+          fix: { type: 'boolean', description: 'Optionally run npm audit fix to automatically patch simple vulnerability updates (default: false)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // npm_check_outdated
+  {
+    type: 'function' as const,
+    function: {
+      name: 'npm_check_outdated',
+      description: 'Identify dependencies that are out of date (runs npm outdated).',
+      parameters: {
+        type: 'object',
+        properties: {
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // npm_run_script
+  {
+    type: 'function' as const,
+    function: {
+      name: 'npm_run_script',
+      description: 'Run a script defined under the scripts field in package.json.',
+      parameters: {
+        type: 'object',
+        properties: {
+          scriptName: { type: 'string', description: 'The name of the script, e.g., "build", "lint", "start"' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['scriptName'],
+      },
+    },
+  },
+  // node_run_file
+  {
+    type: 'function' as const,
+    function: {
+      name: 'node_run_file',
+      description: 'Execute a JavaScript or TypeScript file directly.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: { type: 'string', description: 'The file path to execute, e.g., src/utils/test.ts' },
+          args: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional command-line arguments to pass to the script'
+          },
+          useTsx: { type: 'boolean', description: 'If true, runs TypeScript files using npx tsx (default: true)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['filePath'],
+      },
+    },
+  },
+  // node_get_info
+  {
+    type: 'function' as const,
+    function: {
+      name: 'node_get_info',
+      description: 'Gather environment details like Node.js version, NPM/Yarn version, and OS type.',
+      parameters: {
+        type: 'object',
+        properties: {
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // cmake_configure
+  {
+    type: 'function' as const,
+    function: {
+      name: 'cmake_configure',
+      description: 'Configure the build directory and generate Ninja build files from CMakeLists.txt.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sourceDir: { type: 'string', description: 'Directory containing CMakeLists.txt (default: ".")' },
+          buildDir: { type: 'string', description: 'Target build directory (default: "build")' },
+          buildType: {
+            type: 'string',
+            enum: ['Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel'],
+            description: 'Build configuration profile (default: "Debug")'
+          },
+          generator: {
+            type: 'string',
+            enum: ['Ninja', 'Unix Makefiles'],
+            description: 'Build system generator (default: "Ninja")'
+          },
+          cmakeArgs: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional list of CMake flags or variables, e.g. ["-DBUILD_TESTING=ON"]'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // cmake_build
+  {
+    type: 'function' as const,
+    function: {
+      name: 'cmake_build',
+      description: 'Compile the project targets.',
+      parameters: {
+        type: 'object',
+        properties: {
+          buildDir: { type: 'string', description: 'The build directory initialized during configuration (default: "build")' },
+          target: { type: 'string', description: 'Optional specific target to build (default: build all)' },
+          parallel: { type: 'boolean', description: 'If true, runs compilation in parallel (default: true)' },
+          cleanFirst: { type: 'boolean', description: 'If true, runs a clean step before compiling (default: false)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // cmake_run_tests
+  {
+    type: 'function' as const,
+    function: {
+      name: 'cmake_run_tests',
+      description: 'Run unit tests configured in CMake using the ctest utility.',
+      parameters: {
+        type: 'object',
+        properties: {
+          buildDir: { type: 'string', description: 'The build directory (default: "build")' },
+          testNamePattern: { type: 'string', description: 'Run specific tests matching a regex pattern (optional)' },
+          parallelJobs: { type: 'integer', description: 'Number of parallel test jobs (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // cmake_clean
+  {
+    type: 'function' as const,
+    function: {
+      name: 'cmake_clean',
+      description: 'Clean up build output directories or delete the CMake cache.',
+      parameters: {
+        type: 'object',
+        properties: {
+          buildDir: { type: 'string', description: 'The build directory (default: "build")' },
+          pristineRebuild: { type: 'boolean', description: 'If true, recursively deletes the entire build directory to clean CMake cache (default: false)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // make_run
+  {
+    type: 'function' as const,
+    function: {
+      name: 'make_run',
+      description: 'Execute Make targets configured in a local Makefile.',
+      parameters: {
+        type: 'object',
+        properties: {
+          target: { type: 'string', description: 'The Makefile target to run (optional, e.g. "all", "clean")' },
+          jobs: { type: 'integer', description: 'Number of parallel jobs to run (optional)' },
+          makefile: { type: 'string', description: 'Path to a custom Makefile using the -f flag (optional)' },
+          variables: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional key-value Makefile variables, e.g. ["CC=clang", "DEBUG=1"]'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // c_compile_file
+  {
+    type: 'function' as const,
+    function: {
+      name: 'c_compile_file',
+      description: 'Directly compile a single C or C++ source file using gcc, g++, clang, or clang++.',
+      parameters: {
+        type: 'object',
+        properties: {
+          compiler: {
+            type: 'string',
+            enum: ['gcc', 'g++', 'clang', 'clang++'],
+            description: 'Compiler binary to use'
+          },
+          srcFile: { type: 'string', description: 'Path to C/C++ source file to compile' },
+          outFile: { type: 'string', description: 'Output binary or object file path (optional)' },
+          includeDirs: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Directories to search for header files, mapped to -I (optional)'
+          },
+          flags: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Compiler flag arguments, e.g. ["-Wall", "-O3", "-std=c++20"] (optional)'
+          },
+          linkLibs: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Linker libraries, e.g. ["-lpthread", "-lm"] (optional)'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['compiler', 'srcFile'],
+      },
+    },
+  },
+  // c_analyze_code
+  {
+    type: 'function' as const,
+    function: {
+      name: 'c_analyze_code',
+      description: 'Run static analysis on C/C++ source files using cppcheck or clang-tidy.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: { type: 'string', description: 'Path to file or directory to scan' },
+          tool: {
+            type: 'string',
+            enum: ['cppcheck', 'clang-tidy'],
+            description: 'Analysis tool to use (default: "cppcheck")'
+          },
+          extraArgs: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional list of extra flags to pass to the checker tool'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['filePath'],
+      },
+    },
+  },
+  // grep_regex
+  {
+    type: 'function' as const,
+    function: {
+      name: 'grep_regex',
+      description: 'Search for text pattern matches inside files using regular expressions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          pattern: { type: 'string', description: 'The regular expression pattern to search for' },
+          directory: { type: 'string', description: 'Directory to search recursively (default: cwd)' },
+          fileExtensions: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional file extension list to restrict search, e.g. ["ts", "tsx"]'
+          },
+          caseInsensitive: { type: 'boolean', description: 'Perform case-insensitive matching (default: false)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['pattern'],
+      },
+    },
+  },
+  // grep_find_and_replace
+  {
+    type: 'function' as const,
+    function: {
+      name: 'grep_find_and_replace',
+      description: 'Find and replace a string or regular expression across multiple files.',
+      parameters: {
+        type: 'object',
+        properties: {
+          findPattern: { type: 'string', description: 'The string or regular expression to locate' },
+          replacement: { type: 'string', description: 'The replacement text' },
+          directory: { type: 'string', description: 'Directory to search recursively (default: cwd)' },
+          isRegex: { type: 'boolean', description: 'Treat findPattern as a regular expression (default: false)' },
+          fileExtensions: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional file extension list to restrict search, e.g. ["ts", "js"]'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['findPattern', 'replacement'],
+      },
+    },
+  },
+  // file_find_by_metadata
+  {
+    type: 'function' as const,
+    function: {
+      name: 'file_find_by_metadata',
+      description: 'Find files based on metadata filters like file type, size, or modification times.',
+      parameters: {
+        type: 'object',
+        properties: {
+          directory: { type: 'string', description: 'Directory to search recursively (default: cwd)' },
+          type: {
+            type: 'string',
+            enum: ['file', 'directory'],
+            description: 'Limit results to files or directories'
+          },
+          minSize: { type: 'string', description: 'Exclude files smaller than this size, e.g. "10kb", "1.5mb" (optional)' },
+          maxSize: { type: 'string', description: 'Exclude files larger than this size, e.g. "500kb", "2mb" (optional)' },
+          modifiedWithin: { type: 'string', description: 'Filter files modified within a duration, e.g. "24h", "7d", "30m" (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // python_create_venv
+  {
+    type: 'function' as const,
+    function: {
+      name: 'python_create_venv',
+      description: 'Create a Python virtual environment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          venvPath: { type: 'string', description: 'The path to create the virtual environment in (default: ".venv")' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // python_install_requirements
+  {
+    type: 'function' as const,
+    function: {
+      name: 'python_install_requirements',
+      description: 'Install packages inside a specific Python virtual environment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          requirementsFile: { type: 'string', description: 'Path to a requirements.txt file (optional)' },
+          packages: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional list of individual packages to install'
+          },
+          venvPath: { type: 'string', description: 'The virtual environment directory path (default: ".venv")' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // python_list_packages
+  {
+    type: 'function' as const,
+    function: {
+      name: 'python_list_packages',
+      description: 'Retrieve a list of installed Python packages inside the virtual environment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          venvPath: { type: 'string', description: 'The virtual environment directory path (default: ".venv")' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
+  // python_run_file
+  {
+    type: 'function' as const,
+    function: {
+      name: 'python_run_file',
+      description: 'Execute a Python script using the python interpreter inside a specific virtual environment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filePath: { type: 'string', description: 'The path to the python script to run' },
+          args: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional arguments to pass to the script'
+          },
+          venvPath: { type: 'string', description: 'The virtual environment directory path (default: ".venv")' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['filePath'],
+      },
+    },
+  },
+  // pip_show_package
+  {
+    type: 'function' as const,
+    function: {
+      name: 'pip_show_package',
+      description: 'View detailed metadata about an installed Python package.',
+      parameters: {
+        type: 'object',
+        properties: {
+          packageName: { type: 'string', description: 'The name of the package to show' },
+          venvPath: { type: 'string', description: 'The virtual environment directory path (default: ".venv")' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['packageName'],
+      },
+    },
+  },
+  // java_compile_and_run
+  {
+    type: 'function' as const,
+    function: {
+      name: 'java_compile_and_run',
+      description: 'Compile Java source files or run compiled class files.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['compile', 'run'],
+            description: 'Action to perform: compile source files, or run main class'
+          },
+          sourceFiles: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Source files to compile (required for compile action)'
+          },
+          className: { type: 'string', description: 'Class name with main method to execute (required for run action)' },
+          classPath: { type: 'string', description: 'Classpath lookup paths, mapped to -cp (optional)' },
+          args: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional command-line arguments to pass to the Java program'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  // java_project_build
+  {
+    type: 'function' as const,
+    function: {
+      name: 'java_project_build',
+      description: 'Build Maven or Gradle projects.',
+      parameters: {
+        type: 'object',
+        properties: {
+          system: {
+            type: 'string',
+            enum: ['maven', 'gradle'],
+            description: 'The project build system tool to run'
+          },
+          target: { type: 'string', description: 'The target command or task, e.g. "clean install", "build" (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['system'],
+      },
+    },
+  },
+  // dotnet_command
+  {
+    type: 'function' as const,
+    function: {
+      name: 'dotnet_command',
+      description: 'Configure, build, test, and run .NET projects.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['build', 'run', 'test', 'clean', 'restore', 'publish'],
+            description: 'The dotnet command action to execute'
+          },
+          projectPath: { type: 'string', description: 'Path to a .csproj, .sln, or directory (optional)' },
+          configuration: {
+            type: 'string',
+            enum: ['Debug', 'Release'],
+            description: 'Build configuration profile (optional)'
+          },
+          extraArgs: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional flags or arguments to pass to the command'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  // flutter_command
+  {
+    type: 'function' as const,
+    function: {
+      name: 'flutter_command',
+      description: 'Fetch dependencies, build, and test Flutter/Dart applications.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['build', 'test', 'pub_get', 'doctor', 'clean'],
+            description: 'The flutter action to execute'
+          },
+          buildTarget: {
+            type: 'string',
+            enum: ['apk', 'appbundle', 'ios', 'web', 'macos', 'windows', 'linux'],
+            description: 'Target compile platform (required for build action)'
+          },
+          extraArgs: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional flags or arguments to pass to the command'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  // create_project
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_project',
+      description: 'Scaffold a new project in React, Next.js, Flutter, .NET, Java, Maven, ASP.NET, Flask, Django, etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          template: {
+            type: 'string',
+            enum: [
+              'react',
+              'nextjs',
+              'flutter',
+              'dotnet-console',
+              'aspnet-webapi',
+              'aspnet-mvc',
+              'maven-quickstart',
+              'gradle-java',
+              'flask',
+              'django'
+            ],
+            description: 'The template framework to use for project creation'
+          },
+          projectName: { type: 'string', description: 'The name of the new project' },
+          outputDir: { type: 'string', description: 'Directory where the project should be created (default: cwd)' },
+          extraArgs: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional flags or arguments to pass to the scaffolding command'
+          },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['template', 'projectName'],
+      },
+    },
+  },
 ];
 export type ToolDefinition = typeof TOOL_DEFINITIONS[number];
