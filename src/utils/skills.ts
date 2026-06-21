@@ -47,7 +47,7 @@ export function parseFrontmatter(content: string): {
 
 export async function loadSkills(workspaceCwd: string): Promise<Skill[]> {
   const skills: Skill[] = [];
-  const globalSkillsDir = path.join(os.homedir(), '.cosqcode', 'skills');
+  const globalSkillsDir = path.join(os.homedir(), '.qode', 'skills');
   const workspaceSkillsDir = path.join(workspaceCwd, '.agents', 'skills');
   
   const scanDir = async (dir: string) => {

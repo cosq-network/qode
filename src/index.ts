@@ -9,7 +9,7 @@ import { listSessions, deleteSession } from './utils/storage.js';
 export const program = new Command();
 
 program
-  .name('cosqcode')
+  .name('qode')
   .description('Multi-model coding agent with tools, compression and session resume')
   .version('1.0.0');
 

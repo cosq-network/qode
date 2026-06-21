@@ -27,7 +27,7 @@ export class MCPClient {
       args,
     });
     this.client = new Client(
-      { name: 'cosqcode', version: '1.0.0' },
+      { name: 'qode', version: '1.0.0' },
       { capabilities: {} }
     );
   }

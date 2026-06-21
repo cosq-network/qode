@@ -6,7 +6,7 @@ import ignore from 'ignore';
 export async function getRecentFiles(cwd: string, limit = 5): Promise<string[]> {
   const ignoreFilter = ignore();
   // Always ignore common binaries, libraries, and vcs folders
-  ignoreFilter.add(['.git', 'node_modules', 'dist', '.agents', '.cosqcode', 'package-lock.json', '.DS_Store']);
+  ignoreFilter.add(['.git', 'node_modules', 'dist', '.agents', '.qode', 'package-lock.json', '.DS_Store']);
 
   // Load custom gitignore if exists
   const gitignorePath = path.join(cwd, '.gitignore');

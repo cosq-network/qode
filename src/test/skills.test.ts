@@ -52,7 +52,7 @@ body content`;
 
   describe('loadSkills', () => {
     test('loads skills from global and workspace directories', async () => {
-      const globalDir = path.join(os.homedir(), '.cosqcode', 'skills');
+      const globalDir = path.join(os.homedir(), '.qode', 'skills');
       const workspaceCwd = '/workspace';
       const localDir = path.join(workspaceCwd, '.agents', 'skills');
 
@@ -112,7 +112,7 @@ local instructions`;
     });
 
     test('local workspace skill overrides global skill with same name', async () => {
-      const globalDir = path.join(os.homedir(), '.cosqcode', 'skills');
+      const globalDir = path.join(os.homedir(), '.qode', 'skills');
       const workspaceCwd = '/workspace';
       const localDir = path.join(workspaceCwd, '.agents', 'skills');
 

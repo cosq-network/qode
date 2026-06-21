@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs-extra';
 import os from 'os';
 
-const SESSION_DIR = path.join(os.homedir(), '.cosqcode', 'sessions');
+const SESSION_DIR = path.join(os.homedir(), '.qode', 'sessions');
 
 /**
  * Exact shape of the JSON persisted for a session.

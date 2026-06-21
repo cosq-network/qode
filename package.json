@@ -1,12 +1,12 @@
 {
-  "name": "cosqcode",
+  "name": "qode",
   "version": "1.0.0",
   "type": "module",
   "author": "Benoy Bose <benoybose@cosq.net> (COSQ Network Private Limited)",
   "description": "Multi-provider coding agent CLI with tool use, context compression, and session resume",
   "main": "dist/index.js",
   "bin": {
-    "cosqcode": "./dist/index.js"
+    "qode": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",

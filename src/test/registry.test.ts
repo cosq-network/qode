@@ -153,7 +153,7 @@ describe('Skills Registry', () => {
       const success = await installSkill('Python Lint', workspaceCwd, true);
       expect(success).toBe(true);
 
-      const globalPath = path.join(os.homedir(), '.cosqcode', 'skills', 'python lint', 'SKILL.md');
+      const globalPath = path.join(os.homedir(), '.qode', 'skills', 'python lint', 'SKILL.md');
       expect(mockedFs.ensureDir).toHaveBeenCalledWith(path.dirname(globalPath));
       expect(mockedFs.writeFile).toHaveBeenCalledWith(globalPath, '# Python Lint Instructions', 'utf8');
     });

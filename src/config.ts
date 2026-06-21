@@ -14,7 +14,7 @@ export interface MCPServerConfig {
   args: string[];
 }
 
-export interface CosqcodeConfig {
+export interface QodeConfig {
   providers: Record<string, ProviderConfig>;
   defaultModel?: string;
   autoCompress: boolean;
@@ -23,10 +23,10 @@ export interface CosqcodeConfig {
   theme?: string;
 }
 
-const CONFIG_DIR = path.join(os.homedir(), '.cosqcode');
+const CONFIG_DIR = path.join(os.homedir(), '.qode');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
-const DEFAULT_CONFIG: CosqcodeConfig = {
+const DEFAULT_CONFIG: QodeConfig = {
   providers: {},
   autoCompress: true,
   compressThreshold: 0.8,
@@ -34,10 +34,10 @@ const DEFAULT_CONFIG: CosqcodeConfig = {
 };
 
 /** Load configuration from the user config file and apply any environment variable overrides. */
-export async function loadConfig(): Promise<CosqcodeConfig> {
+export async function loadConfig(): Promise<QodeConfig> {
   try {
     const raw = await fs.readJson(CONFIG_FILE);
-    const merged: CosqcodeConfig = {
+    const merged: QodeConfig = {
       ...DEFAULT_CONFIG,
       ...raw,
       providers: {
@@ -56,7 +56,7 @@ export async function loadConfig(): Promise<CosqcodeConfig> {
   }
 }
 
-export async function saveConfig(config: CosqcodeConfig): Promise<void> {
+export async function saveConfig(config: QodeConfig): Promise<void> {
   await fs.ensureDir(CONFIG_DIR);
   await fs.writeJson(CONFIG_FILE, config, { spaces: 2 });
 }
@@ -96,7 +96,7 @@ export async function configureAuth(): Promise<void> {
 }
 
 /** Apply environment variable overrides for API keys – useful for CI pipelines. */
-function applyEnvOverrides(config: CosqcodeConfig): CosqcodeConfig {
+function applyEnvOverrides(config: QodeConfig): QodeConfig {
   const envMap: Record<string, string | undefined> = {
     'Google AI Studio': process.env.GOOGLE_API_KEY,
     'GitHub Models': process.env.GITHUB_MODELS_API_KEY,

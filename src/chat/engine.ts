@@ -8,10 +8,10 @@ import { TOOL_DEFINITIONS } from '../tools/definitions.js';
 import { executeToolCall } from '../tools/exec.js';
 import { startMCPClients, MCPClient } from '../tools/mcp-client.js';
 import type { ToolDefinition } from '../tools/definitions.js';
-import type { CosqcodeConfig } from '../config.js';
+import type { QodeConfig } from '../config.js';
 export class MissingApiKeyError extends Error {
   constructor(public readonly provider: string) {
-    super(`No API key configured for ${provider}. Run 'cosqcode auth' or set the appropriate environment variable.`);
+    super(`No API key configured for ${provider}. Run 'qode auth' or set the appropriate environment variable.`);
     this.name = 'MissingApiKeyError';
   }
 }
@@ -37,9 +37,9 @@ export class ChatEngine {
   };
   private mcpClients: MCPClient[] = [];
   private allTools: ToolDefinition[] = [];
-  private config: CosqcodeConfig;
+  private config: QodeConfig;
 
-  constructor(config: CosqcodeConfig) {
+  constructor(config: QodeConfig) {
     this.config = config;
   }
 

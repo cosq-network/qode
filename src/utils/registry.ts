@@ -15,9 +15,9 @@ export interface RegistryData {
   skills: RegistrySkill[];
 }
 
-export const DEFAULT_REGISTRY_URL = 'https://raw.githubusercontent.com/cosqcode/skills-registry/main/registry.json';
+export const DEFAULT_REGISTRY_URL = 'https://raw.githubusercontent.com/qode/skills-registry/main/registry.json';
 
-const CACHE_DIR = path.join(os.homedir(), '.cosqcode');
+const CACHE_DIR = path.join(os.homedir(), '.qode');
 const CACHE_FILE = path.join(CACHE_DIR, 'registry-cache.json');
 
 export async function fetchRegistry(url = DEFAULT_REGISTRY_URL): Promise<RegistrySkill[]> {
@@ -86,7 +86,7 @@ export async function installSkill(
     const skillMdContent = await res.text();
 
     const targetBaseDir = global 
-      ? path.join(os.homedir(), '.cosqcode', 'skills')
+      ? path.join(os.homedir(), '.qode', 'skills')
       : path.join(workspaceCwd, '.agents', 'skills');
 
     const skillDir = path.join(targetBaseDir, targetSkill.name.toLowerCase());
