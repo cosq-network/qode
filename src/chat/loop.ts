@@ -448,7 +448,7 @@ async function renderStatusHeader(session: Session, cwd: string, themeName?: str
   console.log(`${t.borderChar}└${border}┘${reset}`);
 }
 
-function completer(line: string) {
+export function completer(line: string) {
   const completions = [
     '/model',
     '/review',
