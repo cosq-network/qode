@@ -16,8 +16,12 @@ import { getRecentFiles } from '../utils/files.js';
 import { getTheme, THEMES, ICONS } from '../utils/themes.js';
 import { copyToClipboard, pasteFromClipboard } from '../utils/clipboard.js';
 import { FileBrowser } from '../utils/browser.js';
+import { getSubagentManager } from '../agents/subagent.js';
+import { getAuthManager } from '../auth/manager.js';
+import { buildIndex, loadIndex, searchIndex } from '../search/indexer.js';
 import path from 'path';
 import fs from 'fs-extra';
+import type { AgentMode } from '../config.js';
 
 export async function startChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
   const config = await loadConfig();
@@ -32,14 +36,21 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
     const data = await loadSession(resumeId);
     modelName = data.modelName;
     session = new Session(data.id, modelName, undefined, data.messages);
+    // Restore mode and plan from saved session
+    if (data.mode && (data.mode === 'build' || data.mode === 'plan')) {
+      session.mode = data.mode;
+    }
+    if (data.activePlan) session.activePlan = data.activePlan;
     // create provider and inject
     const provider = await engine.createProvider(modelName);
     session.setProvider(provider);
+    await session.loadCompressionConfig();
     logger.info(`Resumed session ${resumeId} with model ${modelName}`);
   } else {
     session = new Session(uuidv4(), modelName);
     const provider = await engine.createProvider(modelName);
     session.setProvider(provider);
+    await session.loadCompressionConfig();
     await saveSession(session.id, session.toJSON());
     logger.info(`New session ${session.id} with ${modelName}`);
   }
@@ -116,15 +127,25 @@ Commands:
   /model <model>               Switch model
   /review <file1> [file2 ...]  Review one or more files
   /suggest <task description>  Generate code suggestion
-  /compress                   Force context compression
+  /search [--rebuild] <query>  Semantic search across codebase
+  /compress [--keep N]         Force context compression (N = messages to keep)
   /clear                      Clear conversation (keep system)
   /sessions                   List saved sessions
   /save                       Save current session
   /skills                     Manage skills (list, search, install, list-local)
   /theme [name]               List or switch CLI visual themes
+  /permissions [cmd]           View/set tool permissions (list, set, mode, clear)
+  /allow-all                  Allow all tools for this session
+  /deny-all                   Disable permission bypass
+  /mode [plan|build]           Switch agent mode or show current mode
+  /plan [show|clear|export]    Manage active plan
+  /task <subagent> <prompt>    Delegate task to a subagent (explore, general)
+  /connect <provider>         Set up authentication for a provider
+  /auth [status|logout]       Manage authentication
   /status                     Show session dashboard (tokens, duration, changed files)
   /copy                       Copy last response to clipboard
   /paste                      Paste clipboard content as prompt
+  @<subagent> <prompt>         Delegate via @mention (e.g., @explore find auth)
   !<command>                   Execute a shell command (e.g. !ls -la)
   /exit                       Quit
       `);
@@ -196,9 +217,16 @@ Commands:
       return;
     }
 
-    if (trimmed === '/compress') {
-      await session.compressIfNeeded();
-      await saveSession(session.id, session.toJSON());
+    if (trimmed.startsWith('/compress')) {
+      const parts = trimmed.split(/\s+/);
+      const keepIdx = parts.indexOf('--keep');
+      const keepCount = keepIdx >= 0 ? parseInt(parts[keepIdx + 1]) : undefined;
+      if (keepIdx >= 0 && (keepCount === undefined || isNaN(keepCount) || keepCount < 1)) {
+        logger.info('Usage: /compress [--keep N]  (N = messages to keep, default 4)');
+      } else {
+        await session.compressNow(keepCount);
+        await saveSession(session.id, session.toJSON());
+      }
       await promptNext(session, rl, config);
       return;
     }
@@ -321,10 +349,286 @@ Skills Commands:
       return;
     }
 
+    // ── Permission commands ──────────────────────────────────────────
+    if (trimmed === '/allow-all') {
+      engine.getPermissionManager().enableBypass();
+      logger.info('✔ All tools allowed for this session (bypass active).');
+      await promptNext(session, rl, config);
+      return;
+    }
+    if (trimmed === '/deny-all') {
+      engine.getPermissionManager().disableBypass();
+      engine.getPermissionManager().resetSession();
+      logger.info('✔ Permission bypass disabled. Using configured rules.');
+      await promptNext(session, rl, config);
+      return;
+    }
+    if (trimmed.startsWith('/permissions')) {
+      const parts = trimmed.split(/\s+/);
+      const sub = parts[1];
+
+      if (!sub || sub === 'list') {
+        const pm = engine.getPermissionManager();
+        const bypass = pm.isBypassActive();
+        const overrides = pm.getSessionOverrides();
+        const summary = pm.summarize();
+
+        logger.info('\n┌───────────────────── Permissions ─────────────────────┐');
+        if (bypass) {
+          logger.info('│ ⚠️  Bypass mode: ALL tools allowed for this session   │');
+        }
+        if (overrides.size > 0) {
+          logger.info('│ Session overrides:                                   │');
+          for (const [tool, level] of overrides) {
+            const icon = level === 'allow' ? '✔' : level === 'deny' ? '✘' : '?';
+            logger.info(`│   ${icon} ${tool}: ${level}`);
+          }
+        }
+        // Group by effective permission
+        const groups: Record<string, string[]> = { allow: [], ask: [], deny: [] };
+        for (const { tool, permission } of summary) {
+          groups[permission].push(tool);
+        }
+        for (const [level, tools] of Object.entries(groups)) {
+          if (tools.length > 0) {
+            const icon = level === 'allow' ? '✔' : level === 'deny' ? '✘' : '?';
+            logger.info(`│ ${icon} ${level.toUpperCase()} (${tools.length}): ${tools.slice(0, 5).join(', ')}${tools.length > 5 ? '...' : ''}`);
+          }
+        }
+        logger.info('└──────────────────────────────────────────────────────┘');
+        logger.info('Usage: /permissions set <tool> <allow|ask|deny>');
+        logger.info('       /permissions mode <plan|build|explore>');
+        logger.info('       /permissions clear [tool]');
+        logger.info('       /allow-all / /deny-all');
+      } else if (sub === 'set' && parts[2] && parts[3]) {
+        const tool = parts[2];
+        const level = parts[3] as 'allow' | 'ask' | 'deny';
+        if (!['allow', 'ask', 'deny'].includes(level)) {
+          logger.info('Permission level must be: allow, ask, or deny');
+        } else {
+          engine.getPermissionManager().setSessionOverride(tool, level);
+          logger.info(`✔ Session override: "${tool}" → ${level}`);
+        }
+      } else if (sub === 'mode' && parts[2]) {
+        const mode = parts[2];
+        const modes = engine.getConfig().permissionModes;
+        if (engine.getPermissionManager().loadMode(mode, modes)) {
+          logger.info(`✔ Permission mode "${mode}" loaded.`);
+        } else {
+          logger.info(`Unknown mode "${mode}". Available: ${Object.keys(modes ?? {}).join(', ')}`);
+        }
+      } else if (sub === 'clear' && parts[2]) {
+        engine.getPermissionManager().clearSessionOverride(parts[2]);
+        logger.info(`✔ Session override cleared for "${parts[2]}"`);
+      } else if (sub === 'clear' && !parts[2]) {
+        engine.getPermissionManager().resetSession();
+        logger.info('✔ All session overrides cleared.');
+      } else {
+        logger.info('Usage: /permissions [list|set|mode|clear] [args]');
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    // ── Mode commands ───────────────────────────────────────────────
+    if (trimmed === '/mode' || trimmed.startsWith('/mode ')) {
+      const parts = trimmed.split(/\s+/);
+      const targetMode = parts[1] as AgentMode | undefined;
+
+      if (!targetMode) {
+        // Show current mode
+        const currentMode = session.mode;
+        const planInfo = session.activePlan
+          ? ` | Plan: ${session.getPlanProgress()}`
+          : '';
+        logger.info(`\n┌─────────────────────── Agent Mode ───────────────────────┐`);
+        logger.info(`│ Current mode: \x1b[36m${currentMode.toUpperCase()}\x1b[0m${planInfo}`);
+        logger.info(`│`);
+        logger.info(`│ Available modes:`);
+        logger.info(`│   \x1b[32mbuild\x1b[0m  — Full access (edit, shell, all tools)`);
+        logger.info(`│   \x1b[33mplan\x1b[0m   — Read-only (analyze, search, create plans)`);
+        logger.info(`│`);
+        logger.info(`│ Usage: /mode <build|plan>`);
+        logger.info(`└──────────────────────────────────────────────────────────┘`);
+      } else if (targetMode === 'build' || targetMode === 'plan') {
+        session.setMode(targetMode);
+        // Load the corresponding permission mode
+        const modes = engine.getConfig().permissionModes;
+        if (targetMode === 'plan') {
+          engine.getPermissionManager().loadMode('plan', modes);
+        } else {
+          engine.getPermissionManager().resetSession();
+        }
+        const modeLabel = targetMode === 'plan' ? '\x1b[33mPLAN\x1b[0m' : '\x1b[32mBUILD\x1b[0m';
+        logger.info(`✔ Switched to ${modeLabel} mode`);
+        if (targetMode === 'plan') {
+          logger.info('  Read-only: file edits and shell commands are denied.');
+          logger.info('  Use todowrite to track plan progress.');
+        }
+      } else {
+        logger.info(`Unknown mode "${targetMode}". Available: build, plan`);
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    // ── Plan commands ───────────────────────────────────────────────
+    if (trimmed === '/plan' || trimmed.startsWith('/plan ')) {
+      const parts = trimmed.split(/\s+/);
+      const sub = parts[1];
+
+      if (!sub || sub === 'show') {
+        if (!session.activePlan) {
+          logger.info('No active plan. Use todowrite to create tasks, or ask the AI to create a plan.');
+        } else {
+          const plan = session.activePlan;
+          const completed = plan.steps.filter((s) => s.status === 'completed').length;
+          const total = plan.steps.length;
+          const pct = session.getPlanPercentage();
+
+          logger.info('\n┌──────────────────────── Active Plan ────────────────────────┐');
+          logger.info(`│ Created: ${plan.createdAt}`);
+          if (plan.completedAt) {
+            logger.info(`│ Completed: ${plan.completedAt}`);
+          }
+          logger.info(`│ Progress: ${completed}/${total} steps (${pct}%)`);
+          logger.info('│');
+
+          for (const step of plan.steps) {
+            const icon = step.status === 'completed' ? '\x1b[32m[x]\x1b[0m'
+              : step.status === 'in_progress' ? '\x1b[33m[~]\x1b[0m'
+              : step.status === 'cancelled' ? '\x1b[90m[-]\x1b[0m'
+              : '[ ]';
+            logger.info(`│ ${icon} ${step.description}`);
+          }
+          logger.info('└─────────────────────────────────────────────────────────────┘');
+        }
+      } else if (sub === 'clear') {
+        session.clearPlan();
+        logger.info('✔ Plan cleared.');
+      } else if (sub === 'export') {
+        const md = session.exportPlanAsMarkdown();
+        logger.info('\n' + md);
+      } else {
+        logger.info('Usage: /plan [show|clear|export]');
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    // ── Auth commands ────────────────────────────────────────────────
+    if (trimmed.startsWith('/connect')) {
+      const parts = trimmed.split(/\s+/);
+      const providerName = parts.slice(1).join(' ').trim();
+
+      if (!providerName) {
+        const authManager = getAuthManager();
+        const providers = authManager.listProviders();
+        logger.info('\n┌─────────────────── Available Providers ───────────────────┐');
+        for (const p of providers) {
+          logger.info(`│ ${p.name} (${p.type})`);
+          logger.info(`│   ${p.description}`);
+        }
+        logger.info('└──────────────────────────────────────────────────────────┘');
+        logger.info('Usage: /connect <provider name>');
+      } else {
+        const authManager = getAuthManager();
+        logger.info(`Connecting to ${providerName}...`);
+        const success = await authManager.connectProvider(providerName);
+        if (!success) {
+          logger.info('Connection failed or was cancelled.');
+        }
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    if (trimmed.startsWith('/auth')) {
+      const parts = trimmed.split(/\s+/);
+      const sub = parts[1];
+
+      const authManager = getAuthManager();
+
+      if (!sub || sub === 'status') {
+        await authManager.showStatus();
+      } else if (sub === 'logout') {
+        const providerName = parts[2];
+        if (!providerName) {
+          logger.info('Usage: /auth logout <provider>');
+        } else {
+          await authManager.disconnectProvider(providerName);
+        }
+      } else {
+        logger.info('Usage: /auth [status|logout <provider>]');
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    // ── Search command ──────────────────────────────────────────────
+    if (trimmed.startsWith('/search')) {
+      const parts = trimmed.split(/\s+/);
+      const rebuild = parts.includes('--rebuild');
+      const query = parts.filter((p) => p !== '--rebuild').slice(1).join(' ').trim();
+
+      if (!query) {
+        logger.info('Usage: /search [--rebuild] <query>');
+        logger.info('Options:');
+        logger.info('  --rebuild  Force rebuild the search index');
+      } else {
+        try {
+          if (rebuild) {
+            await buildIndex();
+          } else {
+            const loaded = await loadIndex();
+            if (!loaded) {
+              logger.info('No search index found. Building...');
+              await buildIndex();
+            }
+          }
+
+          const results = searchIndex(query, 10);
+          if (results.length === 0) {
+            logger.info(`No results found for: "${query}"`);
+          } else {
+            logger.info(`\nSearch Results for "${query}":`);
+            for (let i = 0; i < results.length; i++) {
+              const result = results[i];
+              const { filePath, lineStart, lineEnd } = result.document.metadata;
+              const score = (result.score * 100).toFixed(1);
+              const location = lineStart ? `${filePath}:${lineStart}-${lineEnd}` : filePath;
+              logger.info(`\n${i + 1}. \x1b[36m${location}\x1b[0m (${score}% match)`);
+              // Show first few lines
+              const preview = result.document.content.split('\n').slice(0, 3).join('\n');
+              logger.info(`\x1b[90m${preview}\x1b[0m`);
+            }
+          }
+        } catch (error: any) {
+          logger.error(`Search failed: ${error.message}`);
+        }
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
     if (trimmed === '/status') {
       logger.info('\n┌─────────────────────────── Session Status ───────────────────────────┐');
       logger.info(`│ 🤖 Model: \x1b[36m${session.modelName}\x1b[0m (${session.provider?.providerName || 'N/A'})`);
       logger.info(`│ 📁 Directory: \x1b[33m${process.cwd()}\x1b[0m`);
+
+      // Mode
+      const modeIcon = session.mode === 'plan' ? '\x1b[33mPLAN\x1b[0m' : '\x1b[32mBUILD\x1b[0m';
+      logger.info(`│ 🔧 Mode: ${modeIcon}`);
+
+      // Plan progress
+      if (session.activePlan) {
+        const planProgress = session.getPlanProgress();
+        const pct = session.getPlanPercentage();
+        const barWidth = 20;
+        const filled = Math.round((pct / 100) * barWidth);
+        const bar = '█'.repeat(filled) + '░'.repeat(barWidth - filled);
+        logger.info(`│ 📋 Plan: ${planProgress} ${bar} ${pct}%`);
+      }
       
       // Duration
       const sessionStart = new Date(session.createdAt).getTime();
@@ -379,6 +683,33 @@ Skills Commands:
       const totalTools = engine.getTools().length;
       logger.info(`│ 🔧 Loaded Tools: ${totalTools} active tools (including built-ins & MCP)`);
 
+      // Permissions
+      const pm = engine.getPermissionManager();
+      if (pm.isBypassActive()) {
+        logger.info('│ 🔓 Permissions: \x1b[33mBYPASS (all tools allowed)\x1b[0m');
+      } else {
+        const summary = pm.summarize();
+        const askCount = summary.filter((p) => p.permission === 'ask').length;
+        const denyCount = summary.filter((p) => p.permission === 'deny').length;
+        const allowCount = summary.filter((p) => p.permission === 'allow').length;
+        const parts = [];
+        if (askCount > 0) parts.push(`\x1b[33m${askCount} ask\x1b[0m`);
+        if (denyCount > 0) parts.push(`\x1b[31m${denyCount} deny\x1b[0m`);
+        parts.push(`\x1b[32m${allowCount} allow\x1b[0m`);
+        logger.info(`│ 🔐 Permissions: ${parts.join(', ')}`);
+      }
+
+      // Compression stats
+      const compHistory = session.compressionHistory;
+      if (compHistory.length > 0) {
+        const last = compHistory[compHistory.length - 1];
+        const savedTokens = last.tokensBefore - last.tokensAfter;
+        const savedMsgs = last.messagesBefore - last.messagesAfter;
+        logger.info(`│ 🗜️  Compressions: ${compHistory.length} (last saved ${savedTokens} tokens, ${savedMsgs} msgs)`);
+      } else {
+        logger.info('│ 🗜️  Compressions: none yet');
+      }
+
       logger.info('└──────────────────────────────────────────────────────────────────────┘\n');
       await promptNext(session, rl, config);
       return;
@@ -415,6 +746,38 @@ Skills Commands:
         await saveSession(session.id, session.toJSON());
         await promptNext(session, rl, config);
       }
+      return;
+    }
+
+    // ── Task command (subagent delegation) ───────────────────────────
+    if (trimmed.startsWith('/task')) {
+      const parts = trimmed.split(/\s+/);
+      const subagentName = parts[1];
+      const prompt = parts.slice(2).join(' ').trim();
+
+      if (!subagentName || !prompt) {
+        const manager = getSubagentManager();
+        const available = manager.listSubagents();
+        logger.info(`Usage: /task <subagent> <prompt>`);
+        logger.info(`Available subagents: ${available.join(', ')}`);
+        logger.info(`Example: /task explore "Find all authentication patterns in the codebase"`);
+      } else {
+        logger.info(`Delegating to subagent "${subagentName}"...`);
+        const result = await engine.executeTool('task', { subagent: subagentName, prompt });
+        logger.info(`\n${result}\n`);
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    // Check for @mention delegation
+    const mentionManager = getSubagentManager();
+    const mention = mentionManager.parseMention(trimmed);
+    if (mention) {
+      logger.info(`Delegating to subagent "${mention.subagent}"...`);
+      const result = await engine.executeTool('task', { subagent: mention.subagent, prompt: mention.prompt });
+      logger.info(`\n${result}\n`);
+      await promptNext(session, rl, config);
       return;
     }
 
@@ -548,7 +911,8 @@ async function promptNext(session: Session, rl: readline.Interface, config: any)
 function getPromptString(session: Session): string {
   const model = session.modelName;
   const providerName = session.provider?.providerName || 'N/A';
-  return `\x1b[36m[${model} (${providerName})]\x1b[0m > `;
+  const modeTag = session.mode === 'plan' ? ' \x1b[33m[PLAN]\x1b[0m' : '';
+  return `\x1b[36m[${model} (${providerName})]${modeTag}\x1b[0m > `;
 }
 
 async function renderStatusHeader(session: Session, cwd: string, themeName?: string): Promise<void> {
@@ -556,6 +920,7 @@ async function renderStatusHeader(session: Session, cwd: string, themeName?: str
   const reset = '\x1b[0m';
   const model = session.modelName;
   const providerName = session.provider?.providerName || 'N/A';
+  const modeTag = session.mode === 'plan' ? ' \x1b[33m[PLAN]\x1b[0m' : '';
   
   // Calculate tokens
   let consumedTokens = 0;
@@ -579,7 +944,7 @@ async function renderStatusHeader(session: Session, cwd: string, themeName?: str
 
   const border = '─'.repeat(78);
   console.log(`\n${t.borderChar}┌${border}┐${reset}`);
-  console.log(`${t.borderChar}│${reset} ${ICONS.robot} Model: ${t.model}${model}${reset} (${providerName})`);
+  console.log(`${t.borderChar}│${reset} ${ICONS.robot} Model: ${t.model}${model}${reset} (${providerName})${modeTag}`);
   console.log(`${t.borderChar}│${reset} ${ICONS.dir} Directory: ${t.dir}${cwd}${reset}`);
   console.log(`${t.borderChar}│${reset} ${ICONS.chart} Context usage: ${t.context}${consumedTokens}${reset} / ${maxTokens} tokens (${pctUsed}%)`);
   if (recentFiles.length > 0) {
@@ -613,6 +978,7 @@ export function completer(line: string) {
     '/model',
     '/review',
     '/suggest',
+    '/search',
     '/compress',
     '/clear',
     '/sessions',
@@ -622,6 +988,14 @@ export function completer(line: string) {
     '/status',
     '/copy',
     '/paste',
+    '/permissions',
+    '/allow-all',
+    '/deny-all',
+    '/mode',
+    '/plan',
+    '/task',
+    '/connect',
+    '/auth',
     '/exit',
     '/cancel',
   ];

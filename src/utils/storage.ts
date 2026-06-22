@@ -14,6 +14,8 @@ export interface SessionData {
   messages: any[]; // The message objects are defined in LLMMessage, but to avoid circular imports we keep them loosely typed here.
   createdAt: string;
   lastAccessed: string;
+  mode?: string;
+  activePlan?: any;
 }
 
 /** Save a session to disk. */

@@ -40,6 +40,16 @@ jest.mock('../providers/gemini', () => ({
   })),
 }));
 
+// Mock the tools index (registry)
+jest.mock('../tools/index', () => ({
+  initializeTools: jest.fn(),
+  globalRegistry: {
+    getDefinitions: jest.fn().mockReturnValue([]),
+    has: jest.fn().mockReturnValue(false),
+    execute: jest.fn(),
+  },
+}));
+
 describe('ChatEngine', () => {
   it('should create a provider for a known model', async () => {
     const config = await loadConfig();
@@ -49,12 +59,26 @@ describe('ChatEngine', () => {
     expect(provider.modelName).toBe('test-model');
   });
 
-  it('should rebuild tools list (built‑in + MCP)', async () => {
+  it('should rebuild tools list (built-in + MCP)', async () => {
     const config = await loadConfig();
     const engine = new ChatEngine(config);
     await engine.rebuildAllTools();
     const tools = engine.getTools();
     expect(Array.isArray(tools)).toBe(true);
+    // The legacy TOOL_DEFINITIONS are still included as fallback
     expect(tools.length).toBeGreaterThan(0);
+  });
+
+  it('should return undefined for maxToolCalls when not configured', async () => {
+    const config = await loadConfig();
+    const engine = new ChatEngine(config);
+    expect(engine.getMaxToolCalls()).toBeUndefined();
+  });
+
+  it('should return configured maxToolCalls', async () => {
+    const config = await loadConfig();
+    config.maxToolCalls = 25;
+    const engine = new ChatEngine(config);
+    expect(engine.getMaxToolCalls()).toBe(25);
   });
 });

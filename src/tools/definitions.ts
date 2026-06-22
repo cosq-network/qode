@@ -940,5 +940,81 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  // todowrite
+  {
+    type: 'function' as const,
+    function: {
+      name: 'todowrite',
+      description: 'Create and maintain a structured task list for the current coding session. Tracks progress, organizes multi-step work, and surfaces status to the user.',
+      parameters: {
+        type: 'object',
+        properties: {
+          todos: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                content: { type: 'string', description: 'Brief description of the task' },
+                status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled'], description: 'Current status' },
+                priority: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Priority level' },
+              },
+              required: ['content', 'status', 'priority'],
+            },
+            description: 'The updated task list',
+          },
+        },
+        required: ['todos'],
+      },
+    },
+  },
+  // task
+  {
+    type: 'function' as const,
+    function: {
+      name: 'task',
+      description: 'Delegate a task to a specialized subagent. The subagent runs in its own session with restricted permissions and returns a summary.',
+      parameters: {
+        type: 'object',
+        properties: {
+          subagent: {
+            type: 'string',
+            enum: ['explore', 'general'],
+            description: 'The subagent type to delegate to',
+          },
+          prompt: {
+            type: 'string',
+            description: 'The task description for the subagent to execute',
+          },
+        },
+        required: ['subagent', 'prompt'],
+      },
+    },
+  },
+  // semantic_search
+  {
+    type: 'function' as const,
+    function: {
+      name: 'semantic_search',
+      description: 'Search the codebase using semantic similarity. Finds code that matches the meaning of your query, not just keywords.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The search query describing what you are looking for',
+          },
+          topK: {
+            type: 'number',
+            description: 'Number of results to return (default: 10)',
+          },
+          rebuild: {
+            type: 'boolean',
+            description: 'Force rebuild the search index before searching',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
 ];
 export type ToolDefinition = typeof TOOL_DEFINITIONS[number];

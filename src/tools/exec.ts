@@ -9,6 +9,29 @@ export function setCwd(newCwd: string) {
   cwd = newCwd;
 }
 
+/** Check if a command contains dangerous patterns that should be blocked. */
+function containsDangerousPatterns(cmd: string): string | null {
+  const dangerousPatterns: Array<{ pattern: RegExp; description: string }> = [
+    { pattern: /\brm\s+-rf\b/, description: 'rm -rf' },
+    { pattern: /\bmkfs\b/, description: 'mkfs' },
+    { pattern: /\bdd\s+if=/, description: 'dd if=' },
+    { pattern: /\bchmod\s+-R\s+777\b/, description: 'chmod -R 777' },
+    { pattern: /\bchown\s+-R\b/, description: 'chown -R' },
+    { pattern: /\bcurl\b.*\|\s*sh\b/, description: 'curl | sh' },
+    { pattern: /\bwget\b.*\|\s*sh\b/, description: 'wget | sh' },
+    { pattern: /\bpython\b.*-c.*os\.system/, description: 'python os.system' },
+    { pattern: /\bnode\b.*-e.*child_process/, description: 'node child_process' },
+    { pattern: /\beval\s*\(/, description: 'eval()' },
+    { pattern: /\bexec\s*\(/, description: 'exec()' },
+  ];
+  for (const { pattern, description } of dangerousPatterns) {
+    if (pattern.test(cmd)) {
+      return description;
+    }
+  }
+  return null;
+}
+
 function runGit(gitArgs: string[], wd?: string): Promise<string> {
   return new Promise((resolve) => {
     execFile(
@@ -197,10 +220,15 @@ export async function executeToolCall(
     case 'shell_exec': {
       const cmd = args.command as string;
       if (!cmd) return 'Error: no command provided.';
+      // Security: Validate command doesn't contain dangerous patterns
+      const blockedPattern = containsDangerousPatterns(cmd);
+      if (blockedPattern) {
+        return `Error: Command blocked by security policy. Pattern "${blockedPattern}" is not allowed.`;
+      }
       return new Promise((resolve) => {
         exec(
           cmd,
-          { cwd: args.cwd || cwd, maxBuffer: 10 * 1024 * 1024 },
+          { cwd: args.cwd || cwd, maxBuffer: 10 * 1024 * 1024, timeout: 60000 },
           (err, stdout, stderr) => {
             if (err) resolve(`Error: ${err.message}\n${stderr}`);
             else resolve(stdout || stderr || '(no output)');
@@ -345,6 +373,11 @@ export async function executeToolCall(
     case 'run_linter': {
       const { filePath, linter, cwd: wd } = args;
       if (!filePath || !linter) return 'Error: filePath and linter required.';
+      // Security: Validate linter and filePath don't contain dangerous patterns
+      const linterBlocked = containsDangerousPatterns(`${linter} ${filePath}`);
+      if (linterBlocked) {
+        return `Error: Command blocked by security policy. Pattern "${linterBlocked}" is not allowed.`;
+      }
       const cmd = `${linter} ${filePath}`;
       return new Promise((resolve) => {
         exec(
@@ -364,6 +397,11 @@ export async function executeToolCall(
     case 'run_tests': {
       const { testCommand, cwd: wd } = args;
       if (!testCommand) return 'Error: testCommand required.';
+      // Security: Validate testCommand doesn't contain dangerous patterns
+      const testBlocked = containsDangerousPatterns(testCommand as string);
+      if (testBlocked) {
+        return `Error: Command blocked by security policy. Pattern "${testBlocked}" is not allowed.`;
+      }
       return new Promise((resolve) => {
         exec(
           testCommand as string,
@@ -435,12 +473,23 @@ export async function executeToolCall(
     case 'install_package': {
       const { manager, packages, cwd: wd } = args;
       if (!manager || !packages) return 'Error: manager (e.g., npm, pip) and packages required.';
-      const pkgList = Array.isArray(packages) ? packages.join(' ') : packages;
-      const cmd = `${manager} install ${pkgList}`;
+      // Security: Validate package names - only allow alphanumeric, hyphens, dots, slashes, @, and spaces
+      const pkgArray = Array.isArray(packages) ? packages : [packages];
+      const validPkgPattern = /^[@a-zA-Z0-9._\/-]+$/;
+      const invalidPkgs = pkgArray.filter((p: string) => !validPkgPattern.test(p));
+      if (invalidPkgs.length > 0) {
+        return `Error: Invalid package names detected: ${invalidPkgs.join(', ')}. Package names can only contain alphanumeric characters, hyphens, dots, slashes, and @.`;
+      }
+      // Security: Validate manager name
+      const allowedManagers = ['npm', 'yarn', 'pnpm', 'pip', 'pip3', 'poetry', 'cargo', 'go', 'gem', 'composer'];
+      if (!allowedManagers.includes(manager as string)) {
+        return `Error: Package manager "${manager}" is not allowed. Allowed: ${allowedManagers.join(', ')}`;
+      }
       return new Promise((resolve) => {
-        exec(
-          cmd,
-          { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024 },
+        execFile(
+          manager as string,
+          ['install', ...pkgArray],
+          { cwd: (wd as string) || cwd, maxBuffer: 10 * 1024 * 1024 },
           (err, stdout, stderr) => {
             if (err) resolve(`Installation failed:\n${stderr || err.message}`);
             else resolve(stdout || 'Package(s) installed.');
@@ -455,6 +504,11 @@ export async function executeToolCall(
     case 'git_command': {
       const { gitArgs, cwd: wd } = args;
       if (!gitArgs) return 'Error: gitArgs required (e.g., "status", "log --oneline").';
+      // Security: Validate gitArgs doesn't contain dangerous patterns
+      const gitBlocked = containsDangerousPatterns(`git ${gitArgs}`);
+      if (gitBlocked) {
+        return `Error: Command blocked by security policy. Pattern "${gitBlocked}" is not allowed.`;
+      }
       const cmd = `git ${gitArgs}`;
       return new Promise((resolve) => {
         exec(
@@ -671,6 +725,11 @@ export async function executeToolCall(
       const cmd = runWithTsx 
         ? `npx tsx "${resolvedPath}" ${escapedArgs}` 
         : `node "${resolvedPath}" ${escapedArgs}`;
+      // Security: Validate the command doesn't contain dangerous patterns
+      const nodeBlocked = containsDangerousPatterns(cmd);
+      if (nodeBlocked) {
+        return `Error: Command blocked by security policy. Pattern "${nodeBlocked}" is not allowed.`;
+      }
       
       return new Promise((resolve) => {
         exec(

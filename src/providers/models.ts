@@ -1,5 +1,6 @@
 import { loadConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
+import { listLocalModels, formatSize } from '../models/downloader.js';
 
 const MODEL_ALIASES: Record<string, string> = {
   'Big Pickle': 'big-pickle',
@@ -21,11 +22,37 @@ const DEFAULT_MODELS: Record<string, string[]> = {
 export async function listModels(): Promise<void> {
   const config = await loadConfig();
   logger.info('\nAvailable models by provider:\n');
+
+  // Show cloud models
   for (const [provider, models] of Object.entries(DEFAULT_MODELS)) {
     const hasKey = !!config.providers[provider]?.apiKey;
     logger.info(`${provider} ${hasKey ? '✓' : '✗ (no API key)'}`);
     models.forEach((m) => logger.info(`  - ${m}`));
   }
+
+  // Show local models
+  logger.info('\nLocal Models (llama.cpp):');
+  const localCfg = config.localModel;
+  const enabled = localCfg?.enabled ?? false;
+  logger.info(`  Status: ${enabled ? '✓ enabled' : '✗ disabled (set localModel.enabled in config)'}`);
+
+  try {
+    const localModels = await listLocalModels();
+    if (localModels.length === 0) {
+      logger.info('  No models downloaded yet.');
+    } else {
+      for (const model of localModels) {
+        const status = model.downloaded ? '✓' : '✗';
+        const size = model.downloaded ? ` (${formatSize(model.size)})` : '';
+        const quant = model.quantization ? ` [${model.quantization}]` : '';
+        logger.info(`  ${status} ${model.name}${quant}${size}`);
+      }
+    }
+  } catch {
+    logger.info('  (unable to list local models)');
+  }
+
+  logger.info('\n  Use "local" as model name to use a local model.');
 }
 
 export async function updateModels(): Promise<void> {

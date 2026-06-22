@@ -29,6 +29,13 @@ export const logger = {
       console.log(chalk.red(`Error: ${msg}`));
     }
   },
+  warn: (msg: string) => {
+    if ((globalThis as any).JSON_OUTPUT) {
+      console.log(JSON.stringify({ type: 'warn', message: msg }));
+    } else {
+      console.log(chalk.yellow(`Warning: ${msg}`));
+    }
+  },
   debug: (msg: string) => {
     if (!shouldLog('debug')) return;
     if ((globalThis as any).JSON_OUTPUT) {

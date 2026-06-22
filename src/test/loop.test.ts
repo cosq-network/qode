@@ -8,6 +8,12 @@ jest.mock('child_process', () => ({
     setImmediate(() => callback(null, 'Mocked output', ''));
     return { pid: 123 };
   }),
+  execFile: jest.fn((cmd, args, opts, callback) => {
+    // If only 3 args, opts is the callback
+    const cb = typeof opts === 'function' ? opts : callback;
+    setImmediate(() => cb(null, { stdout: '', stderr: '' }));
+  }),
+  execFileSync: jest.fn(),
 }));
 
 jest.mock('../tools/exec.js', () => ({

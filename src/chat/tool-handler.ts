@@ -1,6 +1,6 @@
 import { LLMMessage, ToolCall } from '../providers/base.js';
-import { executeToolCall } from '../tools/exec.js';
 import { logger } from '../utils/logger.js';
+import type { ChatEngine } from './engine.js';
 
 function summarizeOutput(output: string): string {
   if (output.length <= 300) return output;
@@ -9,7 +9,8 @@ function summarizeOutput(output: string): string {
 
 export async function processToolCalls(
   toolCalls: ToolCall[],
-  messages: LLMMessage[]
+  messages: LLMMessage[],
+  engine: ChatEngine
 ): Promise<void> {
   for (const toolCall of toolCalls) {
     const fnName = toolCall.function.name;
@@ -35,7 +36,7 @@ export async function processToolCalls(
 
     let result: string;
     try {
-      result = await executeToolCall(fnName, fnArgs);
+      result = await engine.executeTool(fnName, fnArgs);
     } catch (error) {
       result = `Error: ${error instanceof Error ? error.message : String(error)}`;
     }

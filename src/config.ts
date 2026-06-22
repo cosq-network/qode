@@ -13,6 +13,48 @@ export interface MCPServerConfig {
   args: string[];
 }
 
+/** Permission level for a tool or category. */
+export type PermissionLevel = 'allow' | 'ask' | 'deny';
+
+/** Per-tool or per-category permission rules. Supports wildcard patterns. */
+export interface PermissionRules {
+  [toolOrCategory: string]: PermissionLevel;
+}
+
+/** Predefined permission sets for common modes. */
+export interface ModePermissions {
+  [mode: string]: PermissionRules;
+}
+
+export interface CompressionConfig {
+  /** Number of recent messages to keep during compression (default: 4). */
+  keepMessages: number;
+  /** Whether to always keep the system prompt (default: true). */
+  keepSystem: boolean;
+  /** Prune tool outputs older than this many messages (default: 20). */
+  pruneAfterMessages: number;
+  /** Maximum characters for a pruned tool output summary (default: 120). */
+  pruneMaxChars: number;
+}
+
+/** Configuration for the local llama.cpp model. */
+export interface LocalModelConfig {
+  /** Whether local model support is enabled. */
+  enabled: boolean;
+  /** Model filename to use (overrides auto-detect). */
+  modelPath?: string;
+  /** Port for llama-server (default: 8080). */
+  port?: number;
+  /** Context size for llama-server (default: 32768). */
+  contextSize?: number;
+  /** Number of CPU threads (default: auto). */
+  threads?: number;
+  /** Number of GPU layers to offload (default: 0 = CPU only). */
+  gpuLayers?: number;
+  /** Start llama-server automatically on qode launch. */
+  autoStart?: boolean;
+}
+
 export interface QodeConfig {
   providers: Record<string, ProviderConfig>;
   defaultModel?: string;
@@ -20,6 +62,35 @@ export interface QodeConfig {
   compressThreshold: number;
   mcpServers?: MCPServerConfig[];
   theme?: string;
+  maxToolCalls?: number;
+  /** Global permission rules — evaluated in order: tool-specific > category > wildcard > default. */
+  permissions?: PermissionRules;
+  /** Named permission presets that can be activated via /permissions mode <name>. */
+  permissionModes?: ModePermissions;
+  /** Compression and pruning settings. */
+  compression?: Partial<CompressionConfig>;
+  /** Local model (llama.cpp) settings. */
+  localModel?: LocalModelConfig;
+  /** Active agent mode. */
+  mode?: AgentMode;
+}
+
+/** Agent modes — determines which tools are available and how the agent behaves. */
+export type AgentMode = 'build' | 'plan';
+
+/** A single step in a plan. */
+export interface PlanStep {
+  id: string;
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  files?: string[];
+}
+
+/** An active plan with ordered steps. */
+export interface Plan {
+  steps: PlanStep[];
+  createdAt: string;
+  completedAt?: string;
 }
 
 const CONFIG_DIR = path.join(os.homedir(), '.qode');
@@ -30,6 +101,18 @@ const DEFAULT_CONFIG: QodeConfig = {
   autoCompress: true,
   compressThreshold: 0.8,
   mcpServers: [],
+  permissions: {},
+  permissionModes: {
+    plan: { edit: 'deny', bash: 'ask', read: 'allow', '*': 'allow' },
+    build: { '*': 'allow' },
+    explore: { edit: 'deny', bash: 'deny', read: 'allow', '*': 'allow' },
+  },
+  compression: {
+    keepMessages: 4,
+    keepSystem: true,
+    pruneAfterMessages: 20,
+    pruneMaxChars: 120,
+  },
 };
 
 /** Load configuration from the user config file and apply any environment variable overrides. */
