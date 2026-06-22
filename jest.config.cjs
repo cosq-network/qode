@@ -1,14 +1,16 @@
+const tsJest = require.resolve('ts-jest');
+
 module.exports = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/?(*.)+(test).[tj]s?(x)'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^@clack/prompts$': '<rootDir>/src/test/mocks/clack-prompts.ts',
   },
   transform: {
     '^.+\\.tsx?$': [
-      'ts-jest',
+      tsJest,
       {
         tsconfig: {
           module: 'commonjs',
@@ -17,7 +19,6 @@ module.exports = {
       },
     ],
   },
-  // Ensure ESM packages like chalk and inquirer are transformed
+  // Ensure ESM packages like chalk are transformed; clack is stubbed in tests.
   transformIgnorePatterns: ['/node_modules/(?!chalk|inquirer)'],
 };
-

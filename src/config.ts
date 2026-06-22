@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
-import inquirer from 'inquirer';
+import { isCancel, password } from '@clack/prompts';
 
 export interface ProviderConfig {
   apiKey?: string;
@@ -148,10 +148,11 @@ export async function configureAuth(): Promise<void> {
   const config = await loadConfig();
 
   const askSecret = async (prompt: string): Promise<string> => {
-    const answers = await inquirer.prompt([
-      { type: 'password', name: 'key', message: prompt, mask: '*' },
-    ]);
-    return answers.key;
+    const value = await password({ message: prompt, mask: '*' });
+    if (isCancel(value)) {
+      return '';
+    }
+    return value;
   };
 
   const providers = [

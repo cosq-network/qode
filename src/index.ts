@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import { createRequire } from 'module';
 // import ora from 'ora';
+import { confirm, isCancel } from '@clack/prompts';
 import { logger } from './utils/logger.js';
 import { startChatLoop } from './chat/loop.js';
 import { downloadQwenModel } from './commands/slash.js';
@@ -97,10 +98,8 @@ program
   .option('--reset', 'Remove all stored API keys')
   .action(async (opts) => {
     if (opts.reset) {
-      const confirm = await import('inquirer').then(i => i.prompt([
-        { type: 'confirm', name: 'ok', message: 'Delete all stored API keys?', default: false },
-      ]));
-      if (confirm.ok) {
+      const ok = await confirm({ message: 'Delete all stored API keys?' });
+      if (!isCancel(ok) && ok) {
         await import('./config.js').then(m => m.saveConfig({ providers: {}, autoCompress: true, compressThreshold: 0.8, mcpServers: [] }));
         console.log('All credentials cleared.');
         return;

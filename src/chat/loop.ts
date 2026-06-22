@@ -1,6 +1,9 @@
 import * as readline from 'readline';
 import { exec } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
+import chalk from 'chalk';
+import { intro, outro } from '@clack/prompts';
+import stripAnsiLib from 'strip-ansi';
 import { loadConfig, saveConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { loadSession, saveSession, listSessions } from '../utils/storage.js';
@@ -13,7 +16,7 @@ import { fetchRegistry, searchRegistry, installSkill } from '../utils/registry.j
 // import { runWithSpinner as _runWithSpinner } from '../utils/spinner.js';
 import { handleSlashCommand } from '../commands/slash.js';
 import { getRecentFiles } from '../utils/files.js';
-import { getTheme, THEMES, ICONS } from '../utils/themes.js';
+import { THEMES } from '../utils/themes.js';
 import { copyToClipboard, pasteFromClipboard } from '../utils/clipboard.js';
 import { FileBrowser } from '../utils/browser.js';
 import { getSubagentManager } from '../agents/subagent.js';
@@ -28,6 +31,7 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
   const config = await loadConfig();
   const engine = new ChatEngine(config);
   await engine.rebuildAllTools();
+  intro(chalk.bold.cyan('Qode'));
 
   let modelName = initialModel || config.defaultModel || 'Gemini 2.5 Flash';
   let session: Session;
@@ -50,8 +54,6 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
     await saveSession(session.id, session.toJSON());
     logger.info(`New session ${session.id} with ${modelName}`);
   }
-
-  await ensureSessionProvider(session, engine);
 
   setCwd(process.cwd());
 
@@ -845,7 +847,7 @@ Skills Commands:
     process.stdin.removeListener('keypress', keypressHandler);
     await saveSession(session.id, session.toJSON());
     await engine.close();
-    logger.info('Goodbye!');
+    outro(chalk.bold.cyan('Session saved. Goodbye.'));
     process.exit(0);
   });
 }
@@ -912,7 +914,7 @@ async function activateSkills(prompt: string, session: Session): Promise<void> {
 }
 
 async function promptNext(session: Session, rl: readline.Interface, config: any): Promise<void> {
-  await renderStatusHeader(session, process.cwd(), config.theme);
+  await renderStatusHeader(session, process.cwd(), config.theme, config, session.provider ? true : false);
   rl.setPrompt(getPromptString(session));
   rl.prompt();
 }
@@ -941,50 +943,141 @@ async function ensureSessionProvider(session: Session, engine: ChatEngine): Prom
 function getPromptString(session: Session): string {
   const model = session.modelName;
   const providerName = session.provider?.providerName || 'N/A';
-  const modeTag = session.mode === 'plan' ? ' \x1b[33m[PLAN]\x1b[0m' : '';
-  return `\x1b[36m[${model} (${providerName})]${modeTag}\x1b[0m > `;
+  const modeTag = session.mode === 'plan' ? chalk.yellow(' [PLAN]') : '';
+  return `${chalk.cyan.bold(`[${model} (${providerName})]`)}${modeTag} ${chalk.gray('› ')}`;
 }
 
-async function renderStatusHeader(session: Session, cwd: string, themeName?: string): Promise<void> {
-  const t = getTheme(themeName);
-  const reset = '\x1b[0m';
-  const model = session.modelName;
+async function renderStatusHeader(
+  session: Session,
+  cwd: string,
+  themeName?: string,
+  config?: any,
+  hasProvider = false,
+): Promise<void> {
+  const width = Math.max(80, process.stdout.columns || 80);
+  const contentWidth = width - 4;
+  const divider = '─'.repeat(contentWidth);
+  const shell = chalk.gray('│');
+  const border = chalk.gray('┌') + divider + chalk.gray('┐');
+  const footer = chalk.gray('└') + divider + chalk.gray('┘');
+
   const providerName = session.provider?.providerName || 'N/A';
-  const modeTag = session.mode === 'plan' ? ' \x1b[33m[PLAN]\x1b[0m' : '';
-  
-  // Calculate tokens
+  const modelLine = `${chalk.bold.cyan(session.modelName)} ${chalk.gray('(' + providerName + ')')}${session.mode === 'plan' ? chalk.yellow(' [PLAN]') : ''}`;
+  const sessionAge = formatDuration(Date.now() - new Date(session.createdAt).getTime());
+
   let consumedTokens = 0;
   let maxTokens = 0;
   if (session.provider) {
-    consumedTokens = session.messages.reduce(
-      (sum, m) => sum + session.provider.countTokens(m.content ?? ''),
-      0
-    );
+    consumedTokens = session.messages.reduce((sum, m) => sum + session.provider.countTokens(m.content ?? ''), 0);
     maxTokens = session.provider.maxContextTokens;
   }
-  const pctUsed = maxTokens > 0 ? ((consumedTokens / maxTokens) * 100).toFixed(1) : '0';
+  const pctUsed = maxTokens > 0 ? Math.min(100, (consumedTokens / maxTokens) * 100) : 0;
+  const tokenBar = makeProgressBar(pctUsed, 24);
 
-  // Get recent files
   let recentFiles: string[] = [];
   try {
-    recentFiles = await getRecentFiles(cwd);
+    recentFiles = await getRecentFiles(cwd, 5);
   } catch {
-    // Ignore error
+    recentFiles = [];
   }
 
-  const border = '─'.repeat(78);
-  console.log(`\n${t.borderChar}┌${border}┐${reset}`);
-  console.log(`${t.borderChar}│${reset} ${ICONS.robot} Model: ${t.model}${model}${reset} (${providerName})${modeTag}`);
-  console.log(`${t.borderChar}│${reset} ${ICONS.dir} Directory: ${t.dir}${cwd}${reset}`);
-  console.log(`${t.borderChar}│${reset} ${ICONS.chart} Context usage: ${t.context}${consumedTokens}${reset} / ${maxTokens} tokens (${pctUsed}%)`);
-  if (recentFiles.length > 0) {
-    console.log(`${t.borderChar}│${reset} ${ICONS.clock} Recent edits: ${recentFiles.map(f => `${t.files}${f}${reset}`).join(', ')}`);
+  const messages = session.messages.filter((m) => m.role !== 'system');
+  const recentMessages = messages.slice(-6);
+  const transcriptLines: Array<{ role: string; text: string }> = [];
+  if (recentMessages.length === 0) {
+    transcriptLines.push({ role: 'info', text: 'No conversation yet. Type a prompt or use /help.' });
   } else {
-    console.log(`${t.borderChar}│${reset} ${ICONS.clock} Recent edits: None`);
+    for (const msg of recentMessages) {
+      const role = msg.role === 'user' ? chalk.cyan('USER') : msg.role === 'assistant' ? chalk.green('ASSISTANT') : chalk.gray(msg.role.toUpperCase());
+      const content = summarizeText(msg.content ?? '', contentWidth - 14);
+      transcriptLines.push({ role: stripAnsi(role).toLowerCase(), text: `${content || '(empty)'}` });
+    }
   }
-  console.log(`${t.borderChar}├${border}┤${reset}`);
-  console.log(`${t.borderChar}│${reset} ${ICONS.keyboard} Tab = Autocomplete | Ctrl+F = File Browser | Ctrl+K = Copy | Ctrl+G = Paste`);
-  console.log(`${t.borderChar}└${border}┘${reset}`);
+
+  const commandHints = [
+    '/help  /status  /model <name>  /auth',
+    '/search <query>  /review <file>  /paste',
+    '!<shell command>  /permissions  /mode <plan|build>',
+  ];
+
+  console.clear();
+  console.log(chalk.bold.cyan('Qode CLI'));
+  console.log(chalk.gray(`Session ${session.id.slice(0, 8)}  ${sessionAge}  ${cwd}`));
+  console.log(border);
+  console.log(`${shell} ${chalk.bold('Workspace')}${' '.repeat(Math.max(1, contentWidth - 12))}${shell}`);
+  console.log(`${shell} ${modelLine}${' '.repeat(Math.max(1, contentWidth - stripAnsi(modelLine).length))}${shell}`);
+  console.log(`${shell} ${padAnsi(`${chalk.gray('Provider:')} ${hasProvider ? chalk.green('ready') : chalk.yellow('not ready')}  ${chalk.gray('Mode:')} ${session.mode === 'plan' ? chalk.yellow('plan') : chalk.green('build')}`, contentWidth)}${shell}`);
+  console.log(`${shell} ${padAnsi(`${chalk.gray('Tokens:')} ${chalk.green(tokenBar)} ${chalk.gray(`${Math.round(pctUsed)}%`)}`, contentWidth)}${shell}`);
+  console.log(`${shell} ${padAnsi(`${chalk.gray('Recent files:')} ${formatList(recentFiles, contentWidth - 16)}`, contentWidth)}${shell}`);
+  console.log(chalk.gray('├') + divider + chalk.gray('┤'));
+  console.log(`${shell} ${chalk.bold('Conversation')}${' '.repeat(Math.max(1, contentWidth - 16))}${shell}`);
+  for (const line of transcriptLines) {
+    for (const wrapped of wrapText(line.text, contentWidth - 14)) {
+      const entry = `${chalk.dim(`[${line.role}]`)} ${wrapped}`;
+      console.log(`${shell} ${padAnsi(entry, contentWidth)}${shell}`);
+    }
+  }
+  console.log(chalk.gray('├') + divider + chalk.gray('┤'));
+  console.log(`${shell} ${chalk.bold('Control')}${' '.repeat(Math.max(1, contentWidth - 10))}${shell}`);
+  console.log(`${shell} ${padAnsi(`${chalk.gray('Permissions:')} use /permissions to inspect or override tool access`, contentWidth)}${shell}`);
+  console.log(`${shell} ${padAnsi(`${chalk.gray('Commands:')} ${commandHints[0]}`, contentWidth)}${shell}`);
+  console.log(`${shell} ${padAnsi(`           ${commandHints[1]}`, contentWidth)}${shell}`);
+  console.log(`${shell} ${padAnsi(`           ${commandHints[2]}`, contentWidth)}${shell}`);
+  console.log(footer);
+  console.log(chalk.gray('Tip:') + ' type a message, command, or @mention. Press Ctrl+C to exit.');
+}
+
+function stripAnsi(value: string): string {
+  return stripAnsiLib(value);
+}
+
+function padAnsi(value: string, width: number): string {
+  const visible = stripAnsi(value).length;
+  if (visible >= width) return value.slice(0, Math.max(0, value.length - (visible - width)));
+  return value + ' '.repeat(width - visible);
+}
+
+function wrapText(value: string, width: number): string[] {
+  const clean = stripAnsi(value).replace(/\s+/g, ' ').trim();
+  if (!clean) return [''];
+  const words = clean.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (stripAnsi(next).length > width && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function summarizeText(value: string, width: number): string {
+  const clean = value.replace(/\s+/g, ' ').trim();
+  if (clean.length <= width) return clean;
+  return `${clean.slice(0, Math.max(0, width - 1))}…`;
+}
+
+function makeProgressBar(percent: number, width: number): string {
+  const filled = Math.round((percent / 100) * width);
+  return chalk.green('█'.repeat(filled)) + chalk.gray('░'.repeat(Math.max(0, width - filled)));
+}
+
+function formatDuration(ms: number): string {
+  const secs = Math.floor(ms / 1000) % 60;
+  const mins = Math.floor(ms / 60000) % 60;
+  const hours = Math.floor(ms / 3600000);
+  return `${hours > 0 ? `${hours}h ` : ''}${mins > 0 ? `${mins}m ` : ''}${secs}s`;
+}
+
+function formatList(items: string[], width: number): string {
+  if (items.length === 0) return 'None';
+  const joined = items.slice(0, 3).join(', ');
+  return summarizeText(joined, Math.max(12, width));
 }
 
 export function completer(line: string) {

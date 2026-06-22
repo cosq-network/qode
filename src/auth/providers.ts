@@ -1,3 +1,4 @@
+import { isCancel, password } from '@clack/prompts';
 import type { AuthProvider, AuthTokens, DeviceCodeSession } from './storage.js';
 
 /** Google AI Studio auth provider (API key based). */
@@ -7,16 +8,11 @@ export const GoogleAuthProvider: AuthProvider = {
   description: 'Google AI Studio API key (get from aistudio.google.com)',
 
   async setupApiKey(): Promise<string> {
-    const inquirer = await import('inquirer');
-    const { apiKey } = await inquirer.default.prompt([
-      {
-        type: 'password',
-        name: 'apiKey',
-        message: 'Enter your Google AI Studio API key:',
-        mask: '*',
-      },
-    ]);
-    return apiKey.trim();
+    const apiKey = await password({
+      message: 'Enter your Google AI Studio API key:',
+      mask: '*',
+    });
+    return isCancel(apiKey) ? '' : apiKey.trim();
   },
 
   async validateCredentials(tokens: AuthTokens): Promise<boolean> {
@@ -32,16 +28,11 @@ export const OpenAIAuthProvider: AuthProvider = {
   description: 'OpenAI API key (get from platform.openai.com)',
 
   async setupApiKey(): Promise<string> {
-    const inquirer = await import('inquirer');
-    const { apiKey } = await inquirer.default.prompt([
-      {
-        type: 'password',
-        name: 'apiKey',
-        message: 'Enter your OpenAI API key:',
-        mask: '*',
-      },
-    ]);
-    return apiKey.trim();
+    const apiKey = await password({
+      message: 'Enter your OpenAI API key:',
+      mask: '*',
+    });
+    return isCancel(apiKey) ? '' : apiKey.trim();
   },
 
   async validateCredentials(tokens: AuthTokens): Promise<boolean> {
@@ -66,16 +57,11 @@ export const AnthropicAuthProvider: AuthProvider = {
   description: 'Anthropic API key (for Claude)',
 
   async setupApiKey(): Promise<string> {
-    const inquirer = await import('inquirer');
-    const { apiKey } = await inquirer.default.prompt([
-      {
-        type: 'password',
-        name: 'apiKey',
-        message: 'Enter your Anthropic API key:',
-        mask: '*',
-      },
-    ]);
-    return apiKey.trim();
+    const apiKey = await password({
+      message: 'Enter your Anthropic API key:',
+      mask: '*',
+    });
+    return isCancel(apiKey) ? '' : apiKey.trim();
   },
 
   async validateCredentials(tokens: AuthTokens): Promise<boolean> {

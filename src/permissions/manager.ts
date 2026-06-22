@@ -1,3 +1,4 @@
+import { isCancel, select } from '@clack/prompts';
 import { globalRegistry } from '../tools/index.js';
 import type { PermissionLevel, PermissionRules } from '../config.js';
 
@@ -143,21 +144,20 @@ export class PermissionManager {
     const argsSummary = this.summarizeArgs(args);
 
     const choices = [
-      { name: 'Allow', value: 'allow' as const },
-      { name: 'Deny', value: 'deny' as const },
-      { name: 'Allow for session', value: 'allow_session' as const },
+      { label: 'Allow', value: 'allow' as const },
+      { label: 'Deny', value: 'deny' as const },
+      { label: 'Allow for session', value: 'allow_session' as const },
     ];
 
     try {
-      const inquirer = await import('inquirer');
-      const { decision } = await inquirer.default.prompt([
-        {
-          type: 'list',
-          name: 'decision',
-          message: `Allow tool "${toolName}"?${argsSummary ? `\n  Args: ${argsSummary}` : ''}`,
-          choices,
-        },
-      ]);
+      const decision = await select({
+        message: `Allow tool "${toolName}"?${argsSummary ? `\n  Args: ${argsSummary}` : ''}`,
+        options: choices,
+      });
+
+      if (isCancel(decision)) {
+        return 'deny';
+      }
 
       if (decision === 'allow_session') {
         this.sessionOverrides.set(toolName, 'allow');
