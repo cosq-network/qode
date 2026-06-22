@@ -59,6 +59,10 @@ async function nonStreamingChat(
  */
 export async function processTurn(session: Session, engine: ChatEngine): Promise<void> {
   try {
+    if (!session.provider) {
+      logger.error(`No model provider is configured for ${session.modelName}. Use /auth or /model, then try again.`);
+      return;
+    }
     await session.compressIfNeeded();
 
     let response: ChatResponse;

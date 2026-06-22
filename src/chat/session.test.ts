@@ -40,6 +40,14 @@ describe('Session', () => {
     expect(session.modelName).toBe(provider.modelName);
   });
 
+  it('should clear the active provider when requested', async () => {
+    const session = new Session('sess-clear', 'mock-model');
+    const provider = new MockProvider();
+    session.setProvider(provider);
+    session.clearProvider();
+    expect(session.provider).toBeUndefined();
+  });
+
   it('compressIfNeeded should summarize when token limit exceeded', async () => {
     const session = new Session('sess2', 'mock-model');
     const provider = new MockProvider();

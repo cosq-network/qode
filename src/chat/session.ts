@@ -363,6 +363,11 @@ Concise summary:`;
     this.modelName = provider.modelName;
   }
 
+  /** Clear the active provider when the model changes or initialization fails. */
+  clearProvider() {
+    (this as { provider?: LLMProvider }).provider = undefined;
+  }
+
   toJSON() {
     return {
       id: this.id,

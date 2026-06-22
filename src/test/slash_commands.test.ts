@@ -19,6 +19,16 @@ jest.mock('../utils/logger.js', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
 }));
 
+const mockConfig = { providers: {} as Record<string, { apiKey?: string }> };
+jest.mock('fs-extra', () => ({
+  ensureDir: jest.fn(async () => undefined),
+  pathExists: jest.fn(async () => false),
+  readJson: jest.fn(async () => mockConfig),
+  writeJson: jest.fn(async (_path: string, value: any) => {
+    mockConfig.providers = value.providers ?? {};
+  }),
+}));
+
 // Mock child_process exec
 jest.mock('child_process', () => ({ exec: jest.fn() as any }));
 
@@ -32,6 +42,7 @@ describe('Slash command utilities', () => {
 
   beforeAll(async () => {
     // start from a clean config
+    mockConfig.providers = {};
     await saveConfig({ providers: {} } as any);
   });
 

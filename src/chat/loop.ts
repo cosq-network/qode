@@ -22,6 +22,7 @@ import { buildIndex, loadIndex, searchIndex } from '../search/indexer.js';
 import path from 'path';
 import fs from 'fs-extra';
 import type { AgentMode } from '../config.js';
+import { MissingApiKeyError } from './engine.js';
 
 export async function startChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
   const config = await loadConfig();
@@ -41,19 +42,16 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
       session.mode = data.mode;
     }
     if (data.activePlan) session.activePlan = data.activePlan;
-    // create provider and inject
-    const provider = await engine.createProvider(modelName);
-    session.setProvider(provider);
     await session.loadCompressionConfig();
     logger.info(`Resumed session ${resumeId} with model ${modelName}`);
   } else {
     session = new Session(uuidv4(), modelName);
-    const provider = await engine.createProvider(modelName);
-    session.setProvider(provider);
     await session.loadCompressionConfig();
     await saveSession(session.id, session.toJSON());
     logger.info(`New session ${session.id} with ${modelName}`);
   }
+
+  await ensureSessionProvider(session, engine);
 
   setCwd(process.cwd());
 
@@ -160,6 +158,7 @@ Commands:
         logger.info('Usage: /model <model>');
       } else {
         const newModel = parts[1];
+        session.clearProvider();
         session.modelName = newModel;
         logger.info(`Switched to ${newModel}`);
       }
@@ -187,7 +186,9 @@ Commands:
               role: 'user',
               content: `Please perform a detailed code review of the file **${fp}**. Consider bugs, security, performance, style, and best practices.\n\n\`\`\`\n${content}\n\`\`\``,
             });
-            await processTurn(session, engine);
+            if (await ensureSessionProvider(session, engine)) {
+              await processTurn(session, engine);
+            }
           } catch (e: unknown) {
             const errMsg = e instanceof Error ? e.message : String(e);
             logger.error(`Error reading ${fp}: ${errMsg}`);
@@ -210,7 +211,9 @@ Commands:
           role: 'user',
           content: `Write code to ${task}. Provide the full implementation with explanation.`,
         });
-        await processTurn(session, engine);
+        if (await ensureSessionProvider(session, engine)) {
+          await processTurn(session, engine);
+        }
         await saveSession(session.id, session.toJSON());
       }
       await promptNext(session, rl, config);
@@ -742,7 +745,9 @@ Skills Commands:
         logger.info(`\n\x1b[90mPasted Content:\x1b[0m\n${clipboardContent}\n`);
         await activateSkills(clipboardContent, session);
         session.addMessage({ role: 'user', content: clipboardContent });
-        await processTurn(session, engine);
+        if (await ensureSessionProvider(session, engine)) {
+          await processTurn(session, engine);
+        }
         await saveSession(session.id, session.toJSON());
         await promptNext(session, rl, config);
       }
@@ -784,7 +789,9 @@ Skills Commands:
     // Normal user input
     await activateSkills(trimmed, session);
     session.addMessage({ role: 'user', content: trimmed });
-    await processTurn(session, engine);
+    if (await ensureSessionProvider(session, engine)) {
+      await processTurn(session, engine);
+    }
     await saveSession(session.id, session.toJSON());
     await promptNext(session, rl, config);
   });
@@ -822,7 +829,9 @@ Skills Commands:
           logger.info(`\n\x1b[90mPasted Content:\x1b[0m\n${clipboardContent}\n`);
           await activateSkills(clipboardContent, session);
           session.addMessage({ role: 'user', content: clipboardContent });
-          await processTurn(session, engine);
+          if (await ensureSessionProvider(session, engine)) {
+            await processTurn(session, engine);
+          }
           await saveSession(session.id, session.toJSON());
           await promptNext(session, rl, config);
         }
@@ -906,6 +915,27 @@ async function promptNext(session: Session, rl: readline.Interface, config: any)
   await renderStatusHeader(session, process.cwd(), config.theme);
   rl.setPrompt(getPromptString(session));
   rl.prompt();
+}
+
+async function ensureSessionProvider(session: Session, engine: ChatEngine): Promise<boolean> {
+  if (session.provider && session.provider.modelName === session.modelName) {
+    return true;
+  }
+
+  try {
+    const provider = await engine.createProvider(session.modelName);
+    session.setProvider(provider);
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof MissingApiKeyError) {
+      logger.info(`No API key configured for ${error.provider}. Use /auth or /model, then try again.`);
+      return false;
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to initialize model ${session.modelName}: ${message}`);
+    return false;
+  }
 }
 
 function getPromptString(session: Session): string {
