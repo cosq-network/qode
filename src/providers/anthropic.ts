@@ -84,6 +84,7 @@ export class AnthropicProvider extends LLMProvider {
     messages: LLMMessage[],
     tools?: ToolDefinition[],
     options?: ProviderOptions,
+    _signal?: AbortSignal,
   ): Promise<ChatResponse> {
     const systemMessages = messages.filter((m) => m.role === 'system');
     const nonSystemMessages = messages.filter((m) => m.role !== 'system');

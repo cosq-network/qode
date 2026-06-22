@@ -1,5 +1,6 @@
 import * as readline from 'readline';
 import { exec } from 'child_process';
+import { PassThrough, Writable } from 'stream';
 import { v4 as uuidv4 } from 'uuid';
 import chalk from 'chalk';
 import { intro, outro } from '@clack/prompts';
@@ -26,12 +27,76 @@ import path from 'path';
 import fs from 'fs-extra';
 import type { AgentMode } from '../config.js';
 import { MissingApiKeyError } from './engine.js';
+import { TerminalChatUI } from './terminal-ui.js';
+import { writeOutput } from '../utils/output.js';
+import { getCompletionContext, getCompletionState } from './completion.js';
+
+let activeUI: TerminalChatUI | null = null;
+let chatInput: NodeJS.ReadableStream = process.stdin;
+let chatOutput: NodeJS.WritableStream = process.stdout;
+let tuiKeepAlive: NodeJS.Timeout | null = null;
+let activeTurnAbortController: AbortController | null = null;
+
+async function runTurn(session: Session, engine: ChatEngine): Promise<void> {
+  if (activeTurnAbortController) {
+    return;
+  }
+  const controller = new AbortController();
+  activeTurnAbortController = controller;
+  try {
+    await processTurn(session, engine, controller.signal);
+  } finally {
+    if (activeTurnAbortController === controller) {
+      activeTurnAbortController = null;
+    }
+  }
+}
 
 export async function startChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
+  const useTui = process.stdout.isTTY && !(globalThis as any).JSON_OUTPUT;
+  if (useTui) {
+    return startTuiChatLoop(resumeId, initialModel);
+  }
+  return startLegacyChatLoop(resumeId, initialModel);
+}
+
+async function startTuiChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
+  const input = new PassThrough();
+  input.resume();
+  const output = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+  });
+  chatInput = input;
+  chatOutput = output;
+  activeUI = new TerminalChatUI();
+  activeUI.setSuggestionResolver(getLiveCompletionContext);
+  activeUI.setTaskControls({
+    isRunning: () => activeTurnAbortController !== null,
+    requestCancel: () => {
+      activeTurnAbortController?.abort();
+    },
+  });
+  activeUI.onSubmit(async (value: string) => {
+    activeUI?.recordHistory(value);
+    input.write(`${value}\n`);
+    activeUI?.setSuggestion('');
+  });
+  activeUI.focus();
+  tuiKeepAlive = setInterval(() => {
+    void 0;
+  }, 1000);
+  return startLegacyChatLoop(resumeId, initialModel);
+}
+
+async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
   const config = await loadConfig();
   const engine = new ChatEngine(config);
   await engine.rebuildAllTools();
-  intro(chalk.bold.cyan('Qode'));
+  if (!activeUI) {
+    intro(chalk.bold.cyan('Qode'));
+  }
 
   let modelName = initialModel || config.defaultModel || 'Gemini 2.5 Flash';
   let session: Session;
@@ -58,13 +123,69 @@ export async function startChatLoop(resumeId?: string, initialModel?: string): P
   setCwd(process.cwd());
 
   const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
+    input: chatInput as NodeJS.ReadableStream,
+    output: chatOutput as NodeJS.WritableStream,
     prompt: '> ',
     completer,
   });
 
   const fileBrowser = new FileBrowser(rl);
+  if (activeUI) {
+    activeUI.setActions({
+      onCopy: async () => {
+        const assistantMessages = session.messages.filter(m => m.role === 'assistant');
+        if (assistantMessages.length === 0) {
+          logger.info('No response to copy.');
+          return;
+        }
+        const lastResponse = assistantMessages[assistantMessages.length - 1].content || '';
+        const success = await copyToClipboard(lastResponse);
+        if (success) {
+          logger.info('✔ Last response copied to clipboard.');
+        } else {
+          logger.error('Failed to copy to clipboard.');
+        }
+        await promptNext(session, rl, config);
+      },
+      onPaste: async () => {
+        logger.info('Pasting from clipboard...');
+        const clipboardContent = await pasteFromClipboard();
+        if (!clipboardContent) {
+          logger.info('Clipboard is empty.');
+          await promptNext(session, rl, config);
+          return;
+        }
+        logger.info(`\n\x1b[90mPasted Content:\x1b[0m\n${clipboardContent}\n`);
+        await activateSkills(clipboardContent, session);
+        session.addMessage({ role: 'user', content: clipboardContent });
+        if (await ensureSessionProvider(session, engine)) {
+          await runTurn(session, engine);
+        }
+        await saveSession(session.id, session.toJSON());
+        await promptNext(session, rl, config);
+      },
+      onBrowser: async () => {
+        logger.info('File browser is not available in the TUI yet.');
+      },
+    });
+    activeUI.setSessionControls({
+      onToggleMode: async () => {
+        session.mode = session.mode === 'plan' ? 'build' : 'plan';
+        await saveSession(session.id, session.toJSON());
+        logger.info(`Mode switched to ${session.mode}.`);
+        await promptNext(session, rl, config);
+      },
+      onSave: async () => {
+        await saveSession(session.id, session.toJSON());
+        logger.info('Session saved.');
+        await promptNext(session, rl, config);
+      },
+      onStatus: async () => {
+        logger.info(`Session ${session.id.slice(0, 8)} · ${session.mode} · ${session.modelName}`);
+        await promptNext(session, rl, config);
+      },
+    });
+  }
 
   logger.info(`Working directory: ${process.cwd()}`);
   logger.info('Type /help for commands, /exit to quit.');
@@ -189,7 +310,7 @@ Commands:
               content: `Please perform a detailed code review of the file **${fp}**. Consider bugs, security, performance, style, and best practices.\n\n\`\`\`\n${content}\n\`\`\``,
             });
             if (await ensureSessionProvider(session, engine)) {
-              await processTurn(session, engine);
+              await runTurn(session, engine);
             }
           } catch (e: unknown) {
             const errMsg = e instanceof Error ? e.message : String(e);
@@ -214,7 +335,7 @@ Commands:
           content: `Write code to ${task}. Provide the full implementation with explanation.`,
         });
         if (await ensureSessionProvider(session, engine)) {
-          await processTurn(session, engine);
+          await runTurn(session, engine);
         }
         await saveSession(session.id, session.toJSON());
       }
@@ -748,7 +869,7 @@ Skills Commands:
         await activateSkills(clipboardContent, session);
         session.addMessage({ role: 'user', content: clipboardContent });
         if (await ensureSessionProvider(session, engine)) {
-          await processTurn(session, engine);
+          await runTurn(session, engine);
         }
         await saveSession(session.id, session.toJSON());
         await promptNext(session, rl, config);
@@ -792,7 +913,7 @@ Skills Commands:
     await activateSkills(trimmed, session);
     session.addMessage({ role: 'user', content: trimmed });
     if (await ensureSessionProvider(session, engine)) {
-      await processTurn(session, engine);
+      await runTurn(session, engine);
     }
     await saveSession(session.id, session.toJSON());
     await promptNext(session, rl, config);
@@ -832,22 +953,38 @@ Skills Commands:
           await activateSkills(clipboardContent, session);
           session.addMessage({ role: 'user', content: clipboardContent });
           if (await ensureSessionProvider(session, engine)) {
-            await processTurn(session, engine);
+            await runTurn(session, engine);
           }
           await saveSession(session.id, session.toJSON());
           await promptNext(session, rl, config);
         }
       }
     }
+
+    scheduleSuggestionRefresh(session, rl);
   };
 
-  process.stdin.on('keypress', keypressHandler);
+  if (chatInput === process.stdin) {
+    process.stdin.on('keypress', keypressHandler);
+  }
 
   rl.on('close', async () => {
-    process.stdin.removeListener('keypress', keypressHandler);
+    if (chatInput === process.stdin) {
+      process.stdin.removeListener('keypress', keypressHandler);
+    }
     await saveSession(session.id, session.toJSON());
     await engine.close();
-    outro(chalk.bold.cyan('Session saved. Goodbye.'));
+    if (activeUI) {
+      activeUI.appendLine('Session saved. Goodbye.');
+      activeUI.close();
+      activeUI = null;
+      if (tuiKeepAlive) {
+        clearInterval(tuiKeepAlive);
+        tuiKeepAlive = null;
+      }
+    } else {
+      outro(chalk.bold.cyan('Session saved. Goodbye.'));
+    }
     process.exit(0);
   });
 }
@@ -879,10 +1016,10 @@ export async function executeShellCommand(shellCmd: string): Promise<void> {
   return new Promise<void>((resolve) => {
     exec(shellCmd, { cwd: process.cwd() }, (error, stdout, stderr) => {
       if (stdout) {
-        process.stdout.write(stdout);
+        writeOutput(stdout);
       }
       if (stderr) {
-        process.stderr.write(stderr);
+        writeOutput(stderr);
       }
       if (error && !stderr) {
         logger.error(error.message);
@@ -914,9 +1051,27 @@ async function activateSkills(prompt: string, session: Session): Promise<void> {
 }
 
 async function promptNext(session: Session, rl: readline.Interface, config: any): Promise<void> {
+  if (activeUI) {
+    const recentFiles = await getRecentFiles(process.cwd(), 5).catch(() => []);
+    const providerName = session.provider?.providerName || 'N/A';
+    const tokenUsage = session.provider
+      ? `${session.messages.reduce((sum, m) => sum + session.provider.countTokens(m.content ?? ''), 0)} / ${session.provider.maxContextTokens}`
+      : '0 / 0';
+    activeUI.setState({
+      cwd: process.cwd(),
+      modelName: session.modelName,
+      providerName,
+      mode: session.mode,
+      tokenUsage,
+      recentFiles: recentFiles.length > 0 ? recentFiles.slice(0, 3).join(', ') : 'None',
+      suggestion: getLiveSuggestions(activeUI.getInputValue())[0] || '',
+    });
+    return;
+  }
   await renderStatusHeader(session, process.cwd(), config.theme, config, session.provider ? true : false);
   rl.setPrompt(getPromptString(session));
   rl.prompt();
+  renderSuggestionPreview(rl);
 }
 
 async function ensureSessionProvider(session: Session, engine: ChatEngine): Promise<boolean> {
@@ -945,6 +1100,24 @@ function getPromptString(session: Session): string {
   const providerName = session.provider?.providerName || 'N/A';
   const modeTag = session.mode === 'plan' ? chalk.yellow(' [PLAN]') : '';
   return `${chalk.cyan.bold(`[${model} (${providerName})]`)}${modeTag} ${chalk.gray('› ')}`;
+}
+
+function scheduleSuggestionRefresh(_session: Session, rl: readline.Interface): void {
+  setImmediate(() => renderSuggestionPreview(rl));
+}
+
+function renderSuggestionPreview(rl: readline.Interface): void {
+  if (!process.stdout.isTTY) return;
+  const suggestion = getLiveSuggestions(rl.line)[0];
+  const preview = suggestion ? chalk.gray(`TAB: ${suggestion}`) : '';
+
+  process.stdout.write('\x1b[s');
+  readline.moveCursor(process.stdout, 0, 1);
+  readline.clearLine(process.stdout, 0);
+  if (preview) {
+    process.stdout.write(preview);
+  }
+  process.stdout.write('\x1b[u');
 }
 
 async function renderStatusHeader(
@@ -1081,47 +1254,23 @@ function formatList(items: string[], width: number): string {
 }
 
 export function completer(line: string) {
-  // Handle "@" prefix for file and directory path suggestions
-  const atPos = line.lastIndexOf('@');
-  if (atPos !== -1) {
-    const prefix = line.slice(atPos + 1);
-    try {
-      const entries = fs.readdirSync(process.cwd());
-      const matches = entries
-        .filter((e) => e.startsWith(prefix))
-        .map((e) => line.slice(0, atPos + 1) + e);
-      return [matches.length ? matches : [], line];
-    } catch {
-      // fall back to slash completions on error
-    }
+  const context = getCompletionContext(line);
+  if (!context) {
+    return [[], line];
   }
+  const suggestions = context.suggestions.map((suggestion) => {
+    const prefix = line.slice(0, context.range.start);
+    const suffix = line.slice(context.range.end);
+    return `${prefix}${suggestion}${suffix}`;
+  });
+  return [suggestions.length ? suggestions : context.suggestions, line];
+}
 
-  // Default slash command completions
-  const completions = [
-    '/model',
-    '/review',
-    '/suggest',
-    '/search',
-    '/compress',
-    '/clear',
-    '/sessions',
-    '/save',
-    '/skills',
-    '/theme',
-    '/status',
-    '/copy',
-    '/paste',
-    '/permissions',
-    '/allow-all',
-    '/deny-all',
-    '/mode',
-    '/plan',
-    '/task',
-    '/connect',
-    '/auth',
-    '/exit',
-    '/cancel',
-  ];
-  const hits = completions.filter((c) => c.startsWith(line));
-  return [hits.length ? hits : completions, line];
+function getLiveSuggestions(line: string): string[] {
+  const state = getCompletionState(line);
+  return state?.suggestions ?? [];
+}
+
+function getLiveCompletionContext(line: string, cursor: number) {
+  return getCompletionContext(line, cursor);
 }

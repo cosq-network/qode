@@ -1,6 +1,5 @@
 // src/commands/slash.ts
 import path from 'path';
-import os from 'os';
 import fs from 'fs-extra';
 import { loadConfig, saveConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
@@ -8,6 +7,7 @@ import { runWithSpinner } from '../utils/spinner.js';
 import { exec } from 'child_process';
 import { notify, writeDownloadStatus, readDownloadStatus } from '../utils/notification.js';
 import { promisify } from 'util';
+import { getWritableQodeSubdir } from '../utils/app-paths.js';
 
 const _execAsync = promisify(exec);
 
@@ -37,7 +37,7 @@ export async function clearKey(provider: string): Promise<void> {
  * The download runs in the background and shows a spinner while in progress.
  */
 export async function downloadQwenModel(): Promise<void> {
-  const cacheDir = path.join(os.homedir(), '.qode', 'models');
+  const cacheDir = getWritableQodeSubdir('models');
   await fs.ensureDir(cacheDir);
   const targetPath = path.join(cacheDir, 'Qwen2.5-Coder-0.5B-Instruct.gguf');
   const url = 'https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/resolve/main/qwen2.5-coder-0.5b-instruct.gguf';

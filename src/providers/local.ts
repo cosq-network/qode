@@ -38,9 +38,10 @@ export class LocalModelProvider extends OpenAICompatProvider {
     messages: LLMMessage[],
     tools?: ToolDefinition[],
     options?: ProviderOptions,
+    signal?: AbortSignal,
   ): Promise<ChatResponse> {
     await this.ensureServer();
-    return super.chat(messages, tools, options);
+    return super.chat(messages, tools, options, signal);
   }
 
   /** Override stream to ensure server is running first. */

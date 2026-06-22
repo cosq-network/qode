@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
-import os from 'os';
 import path from 'path';
 import { isCancel, password } from '@clack/prompts';
+import { getQodeSubdir, getWritableQodeHome } from './utils/app-paths.js';
 
 export interface ProviderConfig {
   apiKey?: string;
@@ -93,9 +93,6 @@ export interface Plan {
   completedAt?: string;
 }
 
-const CONFIG_DIR = path.join(os.homedir(), '.qode');
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
-
 const DEFAULT_CONFIG: QodeConfig = {
   providers: {},
   autoCompress: true,
@@ -117,8 +114,9 @@ const DEFAULT_CONFIG: QodeConfig = {
 
 /** Load configuration from the user config file and apply any environment variable overrides. */
 export async function loadConfig(): Promise<QodeConfig> {
+  const configFile = getQodeSubdir('config.json');
   try {
-    const raw = await fs.readJson(CONFIG_FILE);
+    const raw = await fs.readJson(configFile);
     const merged: QodeConfig = {
       ...DEFAULT_CONFIG,
       ...raw,
@@ -139,8 +137,10 @@ export async function loadConfig(): Promise<QodeConfig> {
 }
 
 export async function saveConfig(config: QodeConfig): Promise<void> {
-  await fs.ensureDir(CONFIG_DIR);
-  await fs.writeJson(CONFIG_FILE, config, { spaces: 2 });
+  const configDir = getWritableQodeHome();
+  const configFile = path.join(configDir, 'config.json');
+  await fs.ensureDir(configDir);
+  await fs.writeJson(configFile, config, { spaces: 2 });
 }
 
 /** Prompt the user for API keys (masked input). */

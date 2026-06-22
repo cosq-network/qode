@@ -1,7 +1,7 @@
 // src/utils/skills.ts
 import fs from 'fs-extra';
 import path from 'path';
-import os from 'os';
+import { getQodeSubdir } from './app-paths.js';
 
 export interface Skill {
   name: string;
@@ -47,7 +47,7 @@ export function parseFrontmatter(content: string): {
 
 export async function loadSkills(workspaceCwd: string): Promise<Skill[]> {
   const skills: Skill[] = [];
-  const globalSkillsDir = path.join(os.homedir(), '.qode', 'skills');
+  const globalSkillsDir = getQodeSubdir('skills');
   const workspaceSkillsDir = path.join(workspaceCwd, '.agents', 'skills');
   
   const scanDir = async (dir: string) => {

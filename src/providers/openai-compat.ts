@@ -35,6 +35,7 @@ export class OpenAICompatProvider extends LLMProvider {
     messages: LLMMessage[],
     tools?: ToolDefinition[],
     options?: ProviderOptions,
+    signal?: AbortSignal,
   ): Promise<ChatResponse> {
     const response = await this.client.chat.completions.create({
       model: this.modelName,
@@ -45,7 +46,7 @@ export class OpenAICompatProvider extends LLMProvider {
       max_tokens: options?.maxTokens,
       top_p: options?.topP,
       stop: options?.stopSequences,
-    });
+    }, signal ? { signal } : undefined);
 
     const choice = response.choices[0];
     const assistantMessage: LLMMessage = {

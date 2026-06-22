@@ -162,6 +162,7 @@ export class GeminiProvider extends LLMProvider {
     messages: LLMMessage[],
     tools?: ToolDefinition[],
     options?: ProviderOptions,
+    _signal?: AbortSignal,
   ): Promise<ChatResponse> {
     // Extract system messages
     const systemMessages = messages.filter((m) => m.role === 'system');

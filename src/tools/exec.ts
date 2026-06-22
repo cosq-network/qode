@@ -32,12 +32,12 @@ function containsDangerousPatterns(cmd: string): string | null {
   return null;
 }
 
-function runGit(gitArgs: string[], wd?: string): Promise<string> {
+function runGit(gitArgs: string[], wd?: string, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve) => {
     execFile(
       'git',
       gitArgs,
-      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024, signal },
       (err, stdout, stderr) => {
         if (err) {
           resolve(`Git error: ${stderr || err.message}`);
@@ -49,12 +49,12 @@ function runGit(gitArgs: string[], wd?: string): Promise<string> {
   });
 }
 
-function runNpm(npmArgs: string[], wd?: string): Promise<string> {
+function runNpm(npmArgs: string[], wd?: string, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve) => {
     execFile(
       'npm',
       npmArgs,
-      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024, signal },
       (err, stdout, stderr) => {
         if (err) {
           resolve(stdout || stderr || `NPM error: ${err.message}`);
@@ -66,12 +66,12 @@ function runNpm(npmArgs: string[], wd?: string): Promise<string> {
   });
 }
 
-function runCmake(cmakeArgs: string[], wd?: string): Promise<string> {
+function runCmake(cmakeArgs: string[], wd?: string, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve) => {
     execFile(
       'cmake',
       cmakeArgs,
-      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024, signal },
       (err, stdout, stderr) => {
         if (err) {
           resolve(`CMake error: ${stderr || err.message}\nSTDOUT:\n${stdout}`);
@@ -83,12 +83,12 @@ function runCmake(cmakeArgs: string[], wd?: string): Promise<string> {
   });
 }
 
-function runCtest(ctestArgs: string[], wd?: string): Promise<string> {
+function runCtest(ctestArgs: string[], wd?: string, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve) => {
     execFile(
       'ctest',
       ctestArgs,
-      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024, signal },
       (err, stdout, stderr) => {
         if (err) {
           resolve(`CTest error: ${stderr || err.message}\nSTDOUT:\n${stdout}`);
@@ -100,12 +100,12 @@ function runCtest(ctestArgs: string[], wd?: string): Promise<string> {
   });
 }
 
-function runExecutable(binary: string, binaryArgs: string[], wd?: string): Promise<string> {
+function runExecutable(binary: string, binaryArgs: string[], wd?: string, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve) => {
     execFile(
       binary,
       binaryArgs,
-      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: wd || cwd, maxBuffer: 10 * 1024 * 1024, signal },
       (err, stdout, stderr) => {
         if (err) {
           resolve(`${binary} error: ${stderr || err.message}\nSTDOUT:\n${stdout}`);
@@ -211,7 +211,8 @@ interface ToolArgs {
  */
 export async function executeToolCall(
   name: string,
-  args: ToolArgs
+  args: ToolArgs,
+  _signal?: AbortSignal
 ): Promise<string> {
   switch (name) {
     // -----------------------------------------------------------------------

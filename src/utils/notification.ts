@@ -1,9 +1,9 @@
 // src/utils/notification.ts
 
 import { logger } from './logger.js';
-import path from 'path';
-import os from 'os';
 import fs from 'fs-extra';
+import path from 'path';
+import { getWritableQodeSubdir } from './app-paths.js';
 
 /**
  * Send a desktop notification if possible. Falls back to logger.info.
@@ -25,7 +25,7 @@ export async function notify(message: string): Promise<void> {
  * Persist download status of the Qwen model.
  */
 export async function writeDownloadStatus(): Promise<void> {
-  const cacheDir = path.join(os.homedir(), '.qode', 'models');
+  const cacheDir = getWritableQodeSubdir('models');
   const statusPath = path.join(cacheDir, 'download_status.json');
   const status = { downloaded: true, timestamp: new Date().toISOString() };
   await fs.ensureDir(cacheDir);
@@ -33,7 +33,7 @@ export async function writeDownloadStatus(): Promise<void> {
 }
 
 export async function readDownloadStatus(): Promise<boolean> {
-  const statusPath = path.join(os.homedir(), '.qode', 'models', 'download_status.json');
+  const statusPath = path.join(getWritableQodeSubdir('models'), 'download_status.json');
   if (await fs.pathExists(statusPath)) {
     try {
       const data = await fs.readJson(statusPath);

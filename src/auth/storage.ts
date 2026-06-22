@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
+import { getQodeHome, getWritableQodeHome } from '../utils/app-paths.js';
 
 /** Auth provider types. */
 export type AuthType = 'api-key' | 'oauth' | 'device-code';
@@ -61,16 +62,24 @@ export interface StoredCredentials {
   lastValidated?: string;
 }
 
-const AUTH_DIR = path.join(os.homedir(), '.qode');
-const AUTH_FILE = path.join(AUTH_DIR, 'auth.json');
-const KEY_FILE = path.join(AUTH_DIR, '.encryption-key');
+function getAuthDir(): string {
+  return getQodeHome();
+}
+
+function getAuthFile(): string {
+  return path.join(getAuthDir(), 'auth.json');
+}
+
+function getKeyFile(): string {
+  return path.join(getAuthDir(), '.encryption-key');
+}
 
 // Get or create a machine-specific encryption key
 // Uses a random key stored in a file, with hostname+username as additional entropy
 async function getEncryptionKey(): Promise<string> {
   try {
     // Try to read existing key
-    const keyData = await fs.readJson(KEY_FILE);
+    const keyData = await fs.readJson(getKeyFile());
     if (keyData?.key && typeof keyData.key === 'string' && keyData.key.length === 64) {
       return keyData.key;
     }
@@ -84,11 +93,13 @@ async function getEncryptionKey(): Promise<string> {
   const key = crypto.createHash('sha256').update(Buffer.concat([randomBytes, Buffer.from(machineEntropy)])).digest('hex');
 
   // Save the key
-  await fs.ensureDir(AUTH_DIR);
-  await fs.writeJson(KEY_FILE, { key }, { spaces: 2 });
+  const writableDir = getWritableQodeHome();
+  const writableKeyFile = path.join(writableDir, '.encryption-key');
+  await fs.ensureDir(writableDir);
+  await fs.writeJson(writableKeyFile, { key }, { spaces: 2 });
   // Restrict permissions on key file (Unix only)
   try {
-    await fs.chmod(KEY_FILE, 0o600);
+    await fs.chmod(writableKeyFile, 0o600);
   } catch {
     // Ignore on Windows
   }
@@ -121,7 +132,7 @@ async function decrypt(text: string): Promise<string> {
 export async function loadCredentials(): Promise<Map<string, StoredCredentials>> {
   const map = new Map<string, StoredCredentials>();
   try {
-    const raw = await fs.readJson(AUTH_FILE);
+    const raw = await fs.readJson(getAuthFile());
     if (raw && typeof raw === 'object') {
       for (const [provider, data] of Object.entries(raw)) {
         const cred = data as StoredCredentials;
@@ -164,8 +175,9 @@ export async function saveCredentials(provider: string, cred: StoredCredentials)
   // Convert map to object for JSON serialization
   const obj: Record<string, StoredCredentials> = {};
   for (const [k, v] of map) obj[k] = v;
-  await fs.ensureDir(AUTH_DIR);
-  await fs.writeJson(AUTH_FILE, obj, { spaces: 2 });
+  const writableDir = getWritableQodeHome();
+  await fs.ensureDir(writableDir);
+  await fs.writeJson(path.join(writableDir, 'auth.json'), obj, { spaces: 2 });
 }
 
 /** Remove credentials for a provider. */
@@ -174,8 +186,9 @@ export async function removeCredentials(provider: string): Promise<void> {
   map.delete(provider);
   const obj: Record<string, StoredCredentials> = {};
   for (const [k, v] of map) obj[k] = v;
-  await fs.ensureDir(AUTH_DIR);
-  await fs.writeJson(AUTH_FILE, obj, { spaces: 2 });
+  const writableDir = getWritableQodeHome();
+  await fs.ensureDir(writableDir);
+  await fs.writeJson(path.join(writableDir, 'auth.json'), obj, { spaces: 2 });
 }
 
 /** Get a specific provider's credentials. */

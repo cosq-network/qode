@@ -2,6 +2,7 @@
 import { executeShellCommand, completer } from '../chat/loop.js';
 import { exec } from 'child_process';
 import { setCwd } from '../tools/exec.js';
+import fs from 'fs-extra';
 
 jest.mock('child_process', () => ({
   exec: jest.fn((cmd, options, callback) => {
@@ -60,7 +61,35 @@ describe('Chat Loop Completer', () => {
     expect(hits).toContain('/save');
     expect(hits).toContain('/skills');
   });
+
+  test('completes grouped slash commands', () => {
+    const [hits] = completer('/permissions s');
+    expect(hits).toContain('/permissions set');
+  });
+
+  test('completes @ mentions for nested file paths', () => {
+    const mockEntries = [
+      { name: 'chat', isDirectory: () => true, isFile: () => false },
+      { name: 'config.ts', isDirectory: () => false, isFile: () => true },
+    ] as unknown as fs.Dirent[];
+    const spy = jest.spyOn(fs, 'readdirSync').mockImplementation((dir: any) => {
+      const dirPath = String(dir);
+      if (dirPath.endsWith(`${pathSep()}src`)) {
+        return mockEntries as any;
+      }
+      return [];
+    });
+
+    const [hits] = completer('review @src/ch');
+    expect(hits).toContain('review @src/chat/');
+
+    spy.mockRestore();
+  });
 });
+
+function pathSep(): string {
+  return process.platform === 'win32' ? '\\' : '/';
+}
 
 describe('executeShellCommand', () => {
   let originalChdir: any;

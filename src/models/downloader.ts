@@ -1,12 +1,17 @@
 import path from 'path';
-import os from 'os';
 import fs from 'fs-extra';
 import { spawn } from 'child_process';
 import { logger } from '../utils/logger.js';
 import { notify } from '../utils/notification.js';
+import { getQodeSubdir, getWritableQodeSubdir } from '../utils/app-paths.js';
 
-const MODELS_DIR = path.join(os.homedir(), '.qode', 'models');
-const STATUS_FILE = path.join(MODELS_DIR, 'status.json');
+function getModelsDir(): string {
+  return getQodeSubdir('models');
+}
+
+function getStatusFile(): string {
+  return path.join(getModelsDir(), 'status.json');
+}
 
 /** Metadata about a downloaded model. */
 export interface ModelInfo {
@@ -63,15 +68,17 @@ export const BUILTIN_MODELS: Array<{
 
 /** Ensure the models directory exists. */
 export async function ensureModelsDir(): Promise<string> {
-  await fs.ensureDir(MODELS_DIR);
-  return MODELS_DIR;
+  const dir = getWritableQodeSubdir('models');
+  await fs.ensureDir(dir);
+  return dir;
 }
 
 /** Read the download status file. */
 async function readStatus(): Promise<DownloadStatus> {
   try {
-    if (await fs.pathExists(STATUS_FILE)) {
-      return await fs.readJson(STATUS_FILE);
+    const statusFile = getStatusFile();
+    if (await fs.pathExists(statusFile)) {
+      return await fs.readJson(statusFile);
     }
   } catch { /* ignore */ }
   return { models: {} };
@@ -79,13 +86,14 @@ async function readStatus(): Promise<DownloadStatus> {
 
 /** Write the download status file. */
 async function writeStatus(status: DownloadStatus): Promise<void> {
-  await fs.ensureDir(MODELS_DIR);
-  await fs.writeJson(STATUS_FILE, status, { spaces: 2 });
+  const dir = getWritableQodeSubdir('models');
+  await fs.ensureDir(dir);
+  await fs.writeJson(path.join(dir, 'status.json'), status, { spaces: 2 });
 }
 
 /** Get path to a model file. */
 export function getModelPath(filename: string): string {
-  return path.join(MODELS_DIR, filename);
+  return path.join(getModelsDir(), filename);
 }
 
 /** Check if a model is downloaded. */
@@ -121,10 +129,10 @@ export async function listLocalModels(): Promise<ModelInfo[]> {
   }
 
   // Scan for any .gguf files not in built-in list
-  const files = await fs.readdir(MODELS_DIR);
+  const files = await fs.readdir(getModelsDir());
   for (const file of files) {
     if (file.endsWith('.gguf') && !BUILTIN_MODELS.some((m) => m.filename === file)) {
-      const filePath = path.join(MODELS_DIR, file);
+      const filePath = path.join(getModelsDir(), file);
       try {
         const stat = await fs.stat(filePath);
         results.push({

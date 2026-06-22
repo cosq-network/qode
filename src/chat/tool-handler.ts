@@ -10,9 +10,13 @@ function summarizeOutput(output: string): string {
 export async function processToolCalls(
   toolCalls: ToolCall[],
   messages: LLMMessage[],
-  engine: ChatEngine
+  engine: ChatEngine,
+  signal?: AbortSignal
 ): Promise<void> {
   for (const toolCall of toolCalls) {
+    if (signal?.aborted) {
+      throw new Error('Operation cancelled.');
+    }
     const fnName = toolCall.function.name;
 
     let fnArgs: Record<string, unknown>;
@@ -36,8 +40,11 @@ export async function processToolCalls(
 
     let result: string;
     try {
-      result = await engine.executeTool(fnName, fnArgs);
+      result = await engine.executeTool(fnName, fnArgs, signal);
     } catch (error) {
+      if (signal?.aborted) {
+        throw new Error('Operation cancelled.');
+      }
       result = `Error: ${error instanceof Error ? error.message : String(error)}`;
     }
 

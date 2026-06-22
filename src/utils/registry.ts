@@ -1,8 +1,8 @@
 // src/utils/registry.ts
 import fs from 'fs-extra';
 import path from 'path';
-import os from 'os';
 import { logger } from './logger.js';
+import { getQodeHome, getQodeSubdir } from './app-paths.js';
 
 export interface RegistrySkill {
   name: string;
@@ -17,7 +17,7 @@ export interface RegistryData {
 
 export const DEFAULT_REGISTRY_URL = 'https://raw.githubusercontent.com/qode/skills-registry/main/registry.json';
 
-const CACHE_DIR = path.join(os.homedir(), '.qode');
+const CACHE_DIR = getQodeHome();
 const CACHE_FILE = path.join(CACHE_DIR, 'registry-cache.json');
 
 export async function fetchRegistry(url = DEFAULT_REGISTRY_URL): Promise<RegistrySkill[]> {
@@ -86,7 +86,7 @@ export async function installSkill(
     const skillMdContent = await res.text();
 
     const targetBaseDir = global 
-      ? path.join(os.homedir(), '.qode', 'skills')
+      ? getQodeSubdir('skills')
       : path.join(workspaceCwd, '.agents', 'skills');
 
     const skillDir = path.join(targetBaseDir, targetSkill.name.toLowerCase());

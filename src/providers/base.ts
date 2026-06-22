@@ -60,6 +60,7 @@ export abstract class LLMProvider {
     messages: LLMMessage[],
     tools?: ToolDefinition[],
     options?: ProviderOptions,
+    signal?: AbortSignal,
   ): Promise<ChatResponse>;
 
   /** Streaming variant of chat. If not implemented, callers fall back to `chat()`. */

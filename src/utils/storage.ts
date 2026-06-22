@@ -1,9 +1,7 @@
 // src/utils/storage.ts
 import path from 'path';
 import fs from 'fs-extra';
-import os from 'os';
-
-const SESSION_DIR = path.join(os.homedir(), '.qode', 'sessions');
+import { getQodeSubdir, getWritableQodeSubdir } from './app-paths.js';
 
 /**
  * Exact shape of the JSON persisted for a session.
@@ -20,25 +18,27 @@ export interface SessionData {
 
 /** Save a session to disk. */
 export async function saveSession(id: string, data: SessionData): Promise<void> {
-  await fs.ensureDir(SESSION_DIR);
-  const filePath = path.join(SESSION_DIR, `${id}.json`);
+  const sessionDir = getWritableQodeSubdir('sessions');
+  await fs.ensureDir(sessionDir);
+  const filePath = path.join(sessionDir, `${id}.json`);
   await fs.writeJson(filePath, data, { spaces: 2 });
 }
 
 /** Load a session from disk. */
 export async function loadSession(id: string): Promise<SessionData> {
-  const filePath = path.join(SESSION_DIR, `${id}.json`);
+  const filePath = path.join(getQodeSubdir('sessions'), `${id}.json`);
   return fs.readJson(filePath) as Promise<SessionData>;
 }
 
 export async function listSessions(): Promise<void> {
-  await fs.ensureDir(SESSION_DIR);
-  const files = await fs.readdir(SESSION_DIR);
+  const sessionDir = getQodeSubdir('sessions');
+  await fs.ensureDir(sessionDir);
+  const files = await fs.readdir(sessionDir);
   const sessions: SessionMeta[] = [];
   for (const file of files) {
     if (file.endsWith('.json')) {
       const id = file.replace('.json', '');
-      const data = await fs.readJson(path.join(SESSION_DIR, file)) as SessionData;
+      const data = await fs.readJson(path.join(sessionDir, file)) as SessionData;
       sessions.push({
         id,
         createdAt: data.createdAt ?? 'unknown',
@@ -60,7 +60,7 @@ export interface SessionMeta {
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  const filePath = path.join(SESSION_DIR, `${id}.json`);
+  const filePath = path.join(getQodeSubdir('sessions'), `${id}.json`);
   await fs.remove(filePath);
   console.log(`Session ${id} deleted.`);
 }

@@ -143,7 +143,10 @@ export class ChatEngine {
   }
 
   /** Execute a tool – checks permissions first, then tries MCP, registry, then legacy fallback. */
-  async executeTool(toolName: string, toolArgs: Record<string, unknown>): Promise<string> {
+  async executeTool(toolName: string, toolArgs: Record<string, unknown>, signal?: AbortSignal): Promise<string> {
+    if (signal?.aborted) {
+      throw new Error('Operation cancelled.');
+    }
     // 0. Check permissions
     const decision = await this.permissionManager.checkPermission(toolName, toolArgs);
     if (decision === 'deny') {
@@ -152,7 +155,7 @@ export class ChatEngine {
 
     // Special handling for task tool (subagent delegation)
     if (toolName === 'task') {
-      return this.executeSubagent(toolArgs);
+      return this.executeSubagent(toolArgs, signal);
     }
 
     // 1. Try MCP tools
@@ -166,11 +169,14 @@ export class ChatEngine {
       return await globalRegistry.execute(toolName, toolArgs);
     }
     // 3. Legacy fallback — monolithic switch in exec.ts
-    return await executeToolCall(toolName, toolArgs);
+    return await executeToolCall(toolName, toolArgs, signal);
   }
 
   /** Execute a subagent task. */
-  private async executeSubagent(toolArgs: Record<string, unknown>): Promise<string> {
+  private async executeSubagent(toolArgs: Record<string, unknown>, signal?: AbortSignal): Promise<string> {
+    if (signal?.aborted) {
+      throw new Error('Operation cancelled.');
+    }
     const subagentName = toolArgs.subagent as string;
     const prompt = toolArgs.prompt as string;
     const manager = getSubagentManager();
@@ -210,7 +216,10 @@ export class ChatEngine {
       const maxSteps = config.maxSteps ?? 30;
 
       do {
-        response = await subProvider.chat(subMessages, subTools);
+        if (signal?.aborted) {
+          throw new Error('Operation cancelled.');
+        }
+        response = await subProvider.chat(subMessages, subTools, undefined, signal);
         subMessages.push(response.message);
 
         // If there are tool calls, execute them
@@ -223,13 +232,16 @@ export class ChatEngine {
 
           // Execute tool calls
           for (const toolCall of response.message.tool_calls) {
+            if (signal?.aborted) {
+              throw new Error('Operation cancelled.');
+            }
             const args = JSON.parse(toolCall.function.arguments);
             // Execute with subagent's permissions (bypass main session permissions)
             let result: string;
             if (globalRegistry.has(toolCall.function.name)) {
               result = await globalRegistry.execute(toolCall.function.name, args);
             } else {
-              result = await executeToolCall(toolCall.function.name, args);
+              result = await executeToolCall(toolCall.function.name, args, signal);
             }
 
             subMessages.push({
