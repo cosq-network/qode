@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { createRequire } from 'module';
 // import ora from 'ora';
 import { logger } from './utils/logger.js';
 import { startChatLoop } from './chat/loop.js';
 import { downloadQwenModel } from './commands/slash.js';
+
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
 
 // Background model download
 void (async () => {
@@ -56,7 +60,7 @@ program
 program
   .name('qode')
   .description('Multi-model coding agent with tools, compression and session resume')
-  .version('1.0.0');
+  .version(pkg.version);
 
 // main chat command
 program
