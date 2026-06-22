@@ -14,11 +14,16 @@ export interface ChatUIState {
 }
 
 export class TerminalChatUI {
+  private static readonly PANEL_MARGIN_X = 2;
+  private static readonly PANEL_MARGIN_Y = 1;
+  private static readonly PANEL_GAP_Y = 1;
+  private static readonly PANEL_PADDING = 1;
   private screen: blessed.Widgets.Screen;
   private headerBox: blessed.Widgets.BoxElement;
   private transcriptBox: blessed.Widgets.BoxElement;
   private suggestionBox: blessed.Widgets.BoxElement;
-  private inputBox: blessed.Widgets.BoxElement;
+  private inputBox: blessed.Widgets.TextboxElement;
+  private inputLayout = { top: 0, left: 0, width: 0, height: 0 };
   private transcriptLines: string[] = [];
   private transcriptScrollOffset = 0;
   private transcriptHasUnread = false;
@@ -72,6 +77,7 @@ export class TerminalChatUI {
       height: 5,
       tags: false,
       border: { type: 'line' },
+      padding: TerminalChatUI.PANEL_PADDING,
       style: { border: { fg: 'cyan' } },
       content: '',
     });
@@ -83,6 +89,7 @@ export class TerminalChatUI {
       bottom: 8,
       tags: false,
       border: { type: 'line' },
+      padding: TerminalChatUI.PANEL_PADDING,
       style: { border: { fg: 'blue' } },
       content: '',
     });
@@ -91,23 +98,26 @@ export class TerminalChatUI {
       bottom: 3,
       left: 0,
       width: '100%',
-      height: 5,
+      height: 3,
       tags: false,
       border: { type: 'line' },
+      padding: TerminalChatUI.PANEL_PADDING,
       style: { border: { fg: 'magenta' } },
       content: '',
     });
 
-    this.inputBox = blessed.box({
+    this.inputBox = blessed.textbox({
       bottom: 0,
       left: 0,
       width: '100%',
-      height: 3,
+      height: 4,
       tags: false,
       border: { type: 'line' },
-      keys: true,
+      padding: TerminalChatUI.PANEL_PADDING,
+      keys: false,
       mouse: true,
       vi: true,
+      inputOnFocus: false,
       style: { border: { fg: 'green' } },
       content: '',
     });
@@ -127,7 +137,7 @@ export class TerminalChatUI {
     this.screen.key(['pagedown'], () => this.scrollTranscript(1));
     this.screen.key(['resize'], () => this.renderAll());
 
-    this.screen.on('keypress', (ch, key) => {
+    this.inputBox.on('keypress', (ch, key) => {
       if (!this.inputFocused) {
         return;
       }
@@ -143,6 +153,7 @@ export class TerminalChatUI {
   public focus(): void {
     this.inputFocused = true;
     this.inputBox.focus();
+    this.screen.program.showCursor();
     this.renderAll();
   }
 
@@ -257,14 +268,110 @@ export class TerminalChatUI {
       this.suggestionRefreshToken = null;
     }
     setOutputSink(null);
+    this.screen.program.hideCursor();
     this.screen.destroy();
   }
 
   private renderAll(): void {
+    this.updateLayout();
     this.renderTranscript();
     this.renderSuggestion();
     this.renderInput();
     this.screen.render();
+    this.positionCursor();
+  }
+
+  private updateLayout(): void {
+    const width = Math.max(80, Number(this.screen.width) || 80);
+    const height = Math.max(24, Number(this.screen.height) || 24);
+
+    const marginX = Math.max(1, Math.round(width * 0.03));
+    const marginY = Math.max(1, Math.round(height * 0.03));
+    const gapY = Math.max(1, Math.round(height * 0.02));
+    const contentWidth = Math.max(40, width - marginX * 2);
+    const availableHeight = Math.max(16, height - marginY * 2 - gapY * 3);
+
+    const minHeights = {
+      header: 6,
+      transcript: 8,
+      suggestion: 3,
+      input: 4,
+    };
+
+    const heights = this.allocatePanelHeights(availableHeight, minHeights);
+
+    this.applyBoxLayout(this.headerBox, marginY, marginX, contentWidth, heights.header);
+    this.applyBoxLayout(this.transcriptBox, marginY + heights.header + gapY, marginX, contentWidth, heights.transcript);
+    this.applyBoxLayout(
+      this.suggestionBox,
+      marginY + heights.header + gapY + heights.transcript + gapY,
+      marginX,
+      contentWidth,
+      heights.suggestion,
+    );
+    this.applyBoxLayout(
+      this.inputBox,
+      marginY + heights.header + gapY + heights.transcript + gapY + heights.suggestion + gapY,
+      marginX,
+      contentWidth,
+      heights.input,
+    );
+  }
+
+  private allocatePanelHeights(
+    availableHeight: number,
+    minHeights: { header: number; transcript: number; suggestion: number; input: number },
+  ): { header: number; transcript: number; suggestion: number; input: number } {
+    const heights = { ...minHeights };
+    const totalMin = heights.header + heights.transcript + heights.suggestion + heights.input;
+    const weights = {
+      header: 0.18,
+      transcript: 0.48,
+      suggestion: 0.14,
+      input: 0.08,
+    };
+
+    if (availableHeight <= totalMin) {
+      const scale = Math.max(0.5, availableHeight / totalMin);
+      heights.header = Math.max(4, Math.floor(heights.header * scale));
+      heights.transcript = Math.max(4, Math.floor(heights.transcript * scale));
+      heights.suggestion = Math.max(4, Math.floor(heights.suggestion * scale));
+      heights.input = Math.max(3, Math.floor(heights.input * scale));
+      return heights;
+    }
+
+    let remaining = availableHeight - totalMin;
+    while (remaining > 0) {
+      const choices = Object.entries(weights).map(([key, weight]) => ({
+        key: key as keyof typeof heights,
+        score: weight / (heights[key as keyof typeof heights] - minHeights[key as keyof typeof minHeights] + 1),
+      }));
+      choices.sort((a, b) => b.score - a.score);
+      heights[choices[0].key] += 1;
+      remaining -= 1;
+    }
+
+    return heights;
+  }
+
+  private applyBoxLayout(
+    box: blessed.Widgets.BoxElement,
+    top: number,
+    left: number,
+    width: number,
+    height: number,
+  ): void {
+    const nextTop = Math.max(0, top);
+    const nextLeft = Math.max(0, left);
+    const nextWidth = Math.max(20, width);
+    const nextHeight = Math.max(3, height);
+    if (box === this.inputBox) {
+      this.inputLayout = { top: nextTop, left: nextLeft, width: nextWidth, height: nextHeight };
+    }
+    (box as any).top = nextTop;
+    (box as any).left = nextLeft;
+    (box as any).width = nextWidth;
+    (box as any).height = nextHeight;
   }
 
   private renderTranscript(): void {
@@ -389,12 +496,42 @@ export class TerminalChatUI {
     return `${prompt}${before}${cursorCell}${after}${ghostSuffix}`;
   }
 
+  private getEditorCursorColumn(prompt: string, width: number): number {
+    const available = Math.max(1, width - this.visibleLength(prompt));
+    const line = this.inputValue;
+    const cursor = Math.max(0, Math.min(this.cursor, line.length));
+    const windowWidth = Math.max(1, available - this.visibleLength(this.getGhostText()));
+    const halfWindow = Math.max(4, Math.floor(windowWidth / 2));
+    let start = Math.max(0, cursor - halfWindow);
+    const end = Math.min(line.length, start + windowWidth);
+    if (end - start < windowWidth) {
+      start = Math.max(0, end - windowWidth);
+    }
+    const visible = line.slice(start, end);
+    const cursorOffset = Math.max(0, Math.min(cursor - start, visible.length));
+    return this.visibleLength(prompt) + cursorOffset;
+  }
+
+  private positionCursor(): void {
+    if (!this.inputFocused) return;
+    const prompt = this.historySearchActive ? chalk.yellow('? ') : chalk.cyan('> ');
+    const cursorColumn = this.historySearchActive
+      ? this.visibleLength(prompt) + this.historySearchQuery.length
+      : this.getEditorCursorColumn(prompt, Math.max(20, this.innerWidth(this.inputBox)));
+    const row = this.inputLayout.top + 1 + TerminalChatUI.PANEL_PADDING;
+    const col = this.inputLayout.left + 1 + TerminalChatUI.PANEL_PADDING + cursorColumn;
+    this.screen.program.showCursor();
+    this.screen.program.cup(row, col);
+  }
+
   private innerWidth(box: blessed.Widgets.BoxElement): number {
-    return Math.max(10, Math.floor((box.width as number) || (this.screen.width as number) || 80) - 2);
+    const width = Math.floor((box.width as number) || (this.screen.width as number) || 80);
+    return Math.max(10, width - 2 - TerminalChatUI.PANEL_PADDING * 2);
   }
 
   private innerHeight(box: blessed.Widgets.BoxElement): number {
-    return Math.max(3, Math.floor((box.height as number) || 3) - 2);
+    const height = Math.floor((box.height as number) || 3);
+    return Math.max(3, height - 2 - TerminalChatUI.PANEL_PADDING * 2);
   }
 
   private wrapTranscript(width: number): string[] {
