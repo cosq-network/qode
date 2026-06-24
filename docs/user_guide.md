@@ -25,8 +25,24 @@ Welcome to **Qode** (formerly cosqode/cosqcode) — a professional, lightweight,
 ### Building the Project
 Clone the repository and compile the TypeScript code:
 ```bash
+git clone https://github.com/qode/qode.git
+cd qode
 npm install
 npm run build
+```
+
+### Installing from GitHub Packages
+Install `qode` directly from GitHub Packages using npm:
+```bash
+npm install @cosq-network/qode --registry=https://npm.pkg.github.com
+```
+If the package is private, authenticate first with a GitHub token that has `read:packages` scope:
+```bash
+npm config set //npm.pkg.github.com/:_authToken=<SECRET_03f4a7ff>
+```
+Run a locally installed package with:
+```bash
+npx qode
 ```
 
 ### Starting the CLI
@@ -64,11 +80,13 @@ Qode supports five custom color themes for maximum terminal readability. Change 
 /theme ocean
 ```
 Available themes:
-- `default` (Neon cyan/yellow/green)
-- `ocean` (Teal, blue, and light green accenting)
-- `monochrome` (Classic terminal grey, bold headers)
-- `sunset` (Warm red, yellow, and magenta tones)
-- `forest` (Calming green, light-green, and teal accents)
+- `default`
+- `ocean`
+- `monochrome`
+- `sunset`
+- `forest`
+- `catppuccin-mocha`
+- `nord`
 
 ### Legacy Terminal Compatibility
 Qode checks your terminal's capabilities dynamically. Standard emojis are used on modern systems (macOS Terminal, Linux Terminals, Windows Terminal). In legacy Windows consoles (e.g., cmd.exe), Qode automatically falls back to clean ASCII text headers (like `[DIR]`, `[AI]`, `[TIME]`), keeping interface lines straight and unpolluted.

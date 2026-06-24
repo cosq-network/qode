@@ -7,7 +7,7 @@ const MODEL_ALIASES: Record<string, string> = {
 };
 
 // Default free models from the user's JSON
-const DEFAULT_MODELS: Record<string, string[]> = {
+export const DEFAULT_MODELS: Record<string, string[]> = {
   'Google AI Studio': ['Gemini 3.1 Pro Preview', 'Gemini 2.5 Flash'],
   'GitHub Models': ['DeepSeek-R1', 'o4-mini', 'Llama-4-Scout-17B'],
   'DeepSeek API': ['DeepSeek V4-Pro', 'DeepSeek V4-Flash'],

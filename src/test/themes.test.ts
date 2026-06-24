@@ -4,20 +4,20 @@ import { getTheme, THEMES, ICONS } from '../utils/themes.js';
 describe('Themes system', () => {
   test('returns default theme when name is missing or invalid', () => {
     const defaultTheme = getTheme();
-    expect(defaultTheme.name).toBe('Default (Neon)');
+    expect(defaultTheme.name).toBe('Default (Tokyo Night)');
 
     const invalidTheme = getTheme('non-existent-theme');
-    expect(invalidTheme.name).toBe('Default (Neon)');
+    expect(invalidTheme.name).toBe('Default (Tokyo Night)');
   });
 
   test('returns matching theme case-insensitively', () => {
     const oceanTheme = getTheme('OCEAN');
     expect(oceanTheme.name).toBe('Ocean');
-    expect(oceanTheme.model).toBe('\x1b[34m');
+    expect(oceanTheme.model).toBe('\x1b[38;2;52;178;201m');
 
     const monochromeTheme = getTheme('monochrome');
     expect(monochromeTheme.name).toBe('Monochrome');
-    expect(monochromeTheme.borderChar).toBe('\x1b[0m');
+    expect(monochromeTheme.borderChar).toBe('\x1b[2;37m');
   });
 
   test('contains all expected themes in THEMES', () => {

@@ -22,6 +22,8 @@ import { copyToClipboard, pasteFromClipboard } from '../utils/clipboard.js';
 import { FileBrowser } from '../utils/browser.js';
 import { getSubagentManager } from '../agents/subagent.js';
 import { getAuthManager } from '../auth/manager.js';
+import { AUTH_PROVIDERS } from '../auth/providers.js';
+import { listConfiguredProviders } from '../auth/storage.js';
 import { buildIndex, loadIndex, searchIndex } from '../search/indexer.js';
 import path from 'path';
 import fs from 'fs-extra';
@@ -117,7 +119,7 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
     session = new Session(uuidv4(), modelName);
     await session.loadCompressionConfig();
     await saveSession(session.id, session.toJSON());
-    logger.info(`New session ${session.id} with ${modelName}`);
+    logger.debug(`New session ${session.id} with ${modelName}`);
   }
 
   setCwd(process.cwd());
@@ -187,8 +189,8 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
     });
   }
 
-  logger.info(`Working directory: ${process.cwd()}`);
-  logger.info('Type /help for commands, /exit to quit.');
+  logger.debug(`Working directory: ${process.cwd()}`);
+  logger.debug('Type /help for commands, /exit to quit.');
   await promptNext(session, rl, config);
 
   let linesAccumulator: string[] = [];
@@ -254,6 +256,8 @@ Commands:
   /sessions                   List saved sessions
   /save                       Save current session
   /skills                     Manage skills (list, search, install, list-local)
+  /models                     List available models
+  /download-status            Check background model download progress
   /theme [name]               List or switch CLI visual themes
   /permissions [cmd]           View/set tool permissions (list, set, mode, clear)
   /allow-all                  Allow all tools for this session
@@ -261,8 +265,10 @@ Commands:
   /mode [plan|build]           Switch agent mode or show current mode
   /plan [show|clear|export]    Manage active plan
   /task <subagent> <prompt>    Delegate task to a subagent (explore, general)
-  /connect <provider>         Set up authentication for a provider
-  /auth [status|logout]       Manage authentication
+  /auth                       Show auth status for all providers
+  /auth connect <provider>    Set up authentication for a provider
+  /auth logout <provider>     Remove stored credentials for a provider
+  /set-key <provider> <key>   Set an API key for a provider
   /status                     Show session dashboard (tokens, duration, changed files)
   /copy                       Copy last response to clipboard
   /paste                      Paste clipboard content as prompt
@@ -277,9 +283,7 @@ Commands:
     // Model switching
     if (trimmed.startsWith('/model')) {
       const parts = trimmed.split(' ');
-      if (parts.length < 2) {
-        logger.info('Usage: /model <model>');
-      } else {
+      if (parts.length >= 2) {
         const newModel = parts[1];
         session.clearProvider();
         session.modelName = newModel;
@@ -644,26 +648,13 @@ Skills Commands:
 
     // ── Auth commands ────────────────────────────────────────────────
     if (trimmed.startsWith('/connect')) {
+      // Delegate to /auth connect
       const parts = trimmed.split(/\s+/);
       const providerName = parts.slice(1).join(' ').trim();
-
       if (!providerName) {
-        const authManager = getAuthManager();
-        const providers = authManager.listProviders();
-        logger.info('\n┌─────────────────── Available Providers ───────────────────┐');
-        for (const p of providers) {
-          logger.info(`│ ${p.name} (${p.type})`);
-          logger.info(`│   ${p.description}`);
-        }
-        logger.info('└──────────────────────────────────────────────────────────┘');
-        logger.info('Usage: /connect <provider name>');
+        await showAuthHelp();
       } else {
-        const authManager = getAuthManager();
-        logger.info(`Connecting to ${providerName}...`);
-        const success = await authManager.connectProvider(providerName);
-        if (!success) {
-          logger.info('Connection failed or was cancelled.');
-        }
+        await doAuthConnect(providerName);
       }
       await promptNext(session, rl, config);
       return;
@@ -673,19 +664,36 @@ Skills Commands:
       const parts = trimmed.split(/\s+/);
       const sub = parts[1];
 
-      const authManager = getAuthManager();
-
       if (!sub || sub === 'status') {
-        await authManager.showStatus();
+        await getAuthManager().showStatus();
+        const configured = await listConfiguredProviders();
+        if (configured.length === 0) {
+          logger.info('');
+          logger.info('No providers configured. Use /auth connect <provider> to get started.');
+        } else {
+          logger.info('');
+          const unconfigured = Object.keys(AUTH_PROVIDERS).filter((p) => !configured.includes(p));
+          if (unconfigured.length > 0) {
+            logger.info(`Unconfigured: ${unconfigured.join(', ')}`);
+            logger.info('Use /auth connect <provider> or /set-key <provider> <key> to set up.');
+          }
+        }
+      } else if (sub === 'connect') {
+        const providerName = parts.slice(2).join(' ').trim();
+        if (!providerName) {
+          await showAuthHelp();
+        } else {
+          await doAuthConnect(providerName);
+        }
       } else if (sub === 'logout') {
-        const providerName = parts[2];
+        const providerName = parts.slice(2).join(' ').trim();
         if (!providerName) {
           logger.info('Usage: /auth logout <provider>');
         } else {
-          await authManager.disconnectProvider(providerName);
+          await getAuthManager().disconnectProvider(providerName);
         }
       } else {
-        logger.info('Usage: /auth [status|logout <provider>]');
+        logger.info('Usage: /auth [status|connect <provider>|logout <provider>]');
       }
       await promptNext(session, rl, config);
       return;
@@ -1050,6 +1058,41 @@ async function activateSkills(prompt: string, session: Session): Promise<void> {
   }
 }
 
+/** Show available auth providers and usage. */
+async function showAuthHelp(): Promise<void> {
+  const configured = await listConfiguredProviders();
+  logger.info('');
+  logger.info('Available providers:');
+  for (const name of Object.keys(AUTH_PROVIDERS)) {
+    const isCfg = configured.includes(name);
+    const icon = isCfg ? '✔' : ' ';
+    const status = isCfg ? 'connected' : `use /set-key ${name} <key> or /auth connect ${name}`;
+    logger.info(`  ${icon} ${name} ${status}`);
+  }
+}
+
+/** Start auth flow for a provider (TUI-friendly — no @clack/prompts). */
+async function doAuthConnect(providerName: string): Promise<void> {
+  const authManager = getAuthManager();
+  const provider = AUTH_PROVIDERS[providerName];
+
+  if (!provider) {
+    logger.info(`\nUnknown provider: ${providerName}`);
+    logger.info(`Available: ${Object.keys(AUTH_PROVIDERS).join(', ')}`);
+    return;
+  }
+
+  if (provider.type === 'api-key') {
+    logger.info(`\nTo set up ${providerName}:`);
+    logger.info(`  /set-key ${providerName} <your-api-key>`);
+    logger.info(`Replace <your-api-key> with your actual API key from ${provider.description}`);
+  } else if (provider.type === 'device-code') {
+    await authManager.startDeviceCodeFlow(providerName);
+  } else {
+    logger.info(`\nProvider ${providerName} (${provider.type}) is not yet supported via chat.`);
+  }
+}
+
 async function promptNext(session: Session, rl: readline.Interface, config: any): Promise<void> {
   if (activeUI) {
     const recentFiles = await getRecentFiles(process.cwd(), 5).catch(() => []);
@@ -1158,7 +1201,7 @@ async function renderStatusHeader(
   const recentMessages = messages.slice(-6);
   const transcriptLines: Array<{ role: string; text: string }> = [];
   if (recentMessages.length === 0) {
-    transcriptLines.push({ role: 'info', text: 'No conversation yet. Type a prompt or use /help.' });
+    transcriptLines.push({ role: 'info', text: 'Start a conversation — type /help for commands' });
   } else {
     for (const msg of recentMessages) {
       const role = msg.role === 'user' ? chalk.cyan('USER') : msg.role === 'assistant' ? chalk.green('ASSISTANT') : chalk.gray(msg.role.toUpperCase());

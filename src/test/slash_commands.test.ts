@@ -1,47 +1,61 @@
-// src/test/slash_commands.test.ts
-
-// Mock external ESM modules before any imports
-jest.mock('inquirer', () => ({ prompt: jest.fn() }));
-jest.mock('ora', () => ({
-  default: jest.fn(() => ({
-    start: jest.fn(() => ({
-      succeed: jest.fn(),
-      fail: jest.fn()
-    }))
-  }))
-}));
-
-// Mock utilities before importing the code under test
-jest.mock('../utils/spinner.js', () => ({
-  runWithSpinner: jest.fn(async (_msg, fn) => await fn())
-}));
 jest.mock('../utils/logger.js', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+}));
+
+jest.mock('../utils/download-progress.js', () => ({
+  setDownloadProgress: jest.fn(),
+  resetDownloadProgress: jest.fn(),
+  getDownloadProgress: jest.fn(() => ({ status: 'idle', percent: 0 })),
+  listDownloadProgress: jest.fn(() => []),
+  loadDownloadProgress: jest.fn(async () => {}),
+}));
+
+jest.mock('../utils/notification.js', () => ({
+  notify: jest.fn(async () => {}),
+  writeDownloadStatus: jest.fn(async () => {}),
+  readDownloadStatus: jest.fn(async () => false),
 }));
 
 const mockConfig = { providers: {} as Record<string, { apiKey?: string }> };
 jest.mock('fs-extra', () => ({
   ensureDir: jest.fn(async () => undefined),
-  pathExists: jest.fn(async () => false),
+  pathExists: jest.fn(async (_p: string) => {
+    if (_p.endsWith('status.json')) return false;
+    if (_p.endsWith('.gguf')) return false;
+    return false;
+  }),
   readJson: jest.fn(async () => mockConfig),
   writeJson: jest.fn(async (_path: string, value: any) => {
     mockConfig.providers = value.providers ?? {};
   }),
+  stat: jest.fn(async () => ({ size: 1024 })),
+  readdir: jest.fn(async () => []),
 }));
 
-// Mock child_process exec
-jest.mock('child_process', () => ({ exec: jest.fn() as any }));
+jest.mock('child_process', () => {
+  const EventEmitter = require('events').EventEmitter;
+  return {
+    spawn: jest.fn(() => {
+      const proc = new EventEmitter();
+      proc.stderr = new EventEmitter();
+      proc.stdout = new EventEmitter();
+      process.nextTick(() => {
+        proc.stderr.emit('data', Buffer.from('100%'));
+        proc.emit('close', 0);
+      });
+      return proc;
+    }),
+  };
+});
 
-import { setKey, clearKey, handleSlashCommand, downloadQwenModel } from '../commands/slash.js';
+import { setKey, clearKey, handleSlashCommand, downloadQwenModel, downloadStatus } from '../commands/slash.js';
 import { loadConfig, saveConfig } from '../config.js';
-import { exec } from 'child_process';
 
 describe('Slash command utilities', () => {
   const testProvider = 'OpenAI';
   const testKey = 'sk-test-key';
 
   beforeAll(async () => {
-    // start from a clean config
     mockConfig.providers = {};
     await saveConfig({ providers: {} } as any);
   });
@@ -67,13 +81,25 @@ describe('Slash command utilities', () => {
     expect(cfg.providers?.[testProvider]?.apiKey).toBe(testKey);
   });
 
-  test('downloadQwenModel runs spinner and exec', async () => {
-    (exec as unknown as jest.Mock).mockImplementation((_cmd: string, cb: (error: any, result: any) => void) =>
-      cb(null, { stdout: '', stderr: '' })
-    );
+  test('downloadQwenModel runs silently', async () => {
     await downloadQwenModel();
-    const { runWithSpinner } = require('../utils/spinner.js');
-    expect(runWithSpinner).toHaveBeenCalled();
-    expect(exec).toHaveBeenCalled();
+    const { setDownloadProgress } = require('../utils/download-progress.js');
+    expect(setDownloadProgress).toHaveBeenCalled();
+  });
+
+  test('downloadStatus returns status info', async () => {
+    const { logger } = require('../utils/logger.js');
+    await downloadStatus();
+    expect(logger.info).toHaveBeenCalled();
+  });
+
+  test('handleSlashCommand handles /download-status', async () => {
+    const handled = await handleSlashCommand('/download-status');
+    expect(handled).toBe(true);
+  });
+
+  test('handleSlashCommand handles /models', async () => {
+    const handled = await handleSlashCommand('/models');
+    expect(handled).toBe(true);
   });
 });

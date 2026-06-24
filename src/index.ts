@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { createRequire } from 'module';
 // import ora from 'ora';
-import { confirm, isCancel } from '@clack/prompts';
+import { confirm, isCancel, password } from '@clack/prompts';
 import { logger } from './utils/logger.js';
 import { startChatLoop } from './chat/loop.js';
 import { downloadQwenModel } from './commands/slash.js';
@@ -43,6 +43,7 @@ void (async () => {
   }
 })();
 import { listModels, updateModels } from './providers/models.js';
+import { saveCredentials } from './auth/storage.js';
 
 import { listSessions, deleteSession } from './utils/storage.js';
 
@@ -106,6 +107,25 @@ program
       }
     }
     await import('./config.js').then(m => m.configureAuth());
+  });
+
+// switch default provider and model
+program
+  .command('use <provider> <model>')
+  .description('Switch default provider and model')
+  .action(async (provider, model) => {
+    try {
+      const { loadConfig, saveConfig } = await import('./config.js');
+      const config = await loadConfig();
+      config.providers = { ...(config.providers ?? {}), [provider]: { ...(config.providers?.[provider] ?? {}) } };
+      config.defaultModel = model;
+      await saveConfig(config);
+      console.log(`Switched default to ${provider} / ${model}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`Error: ${message}`);
+      process.exitCode = 1;
+    }
   });
 
 // session management

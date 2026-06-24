@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import { logger } from '../utils/logger.js';
 import { notify } from '../utils/notification.js';
 import { getQodeSubdir, getWritableQodeSubdir } from '../utils/app-paths.js';
+import { setDownloadProgress, loadDownloadProgress } from '../utils/download-progress.js';
 
 function getModelsDir(): string {
   return getQodeSubdir('models');
@@ -151,20 +152,32 @@ export async function listLocalModels(): Promise<ModelInfo[]> {
 /** Download a model file with progress reporting. */
 export async function downloadModel(
   model: (typeof BUILTIN_MODELS)[number],
-  onProgress?: (percent: number) => void,
+  options?: { onProgress?: (percent: number) => void; silent?: boolean },
 ): Promise<string> {
   const targetPath = getModelPath(model.filename);
+  const silent = options?.silent ?? false;
+  const onProgress = options?.onProgress;
 
   if (await fs.pathExists(targetPath)) {
-    logger.info(`✅ ${model.name} already downloaded.`);
+    if (!silent) logger.info(`✅ ${model.name} already downloaded.`);
+    setDownloadProgress(model.filename, { modelName: model.name, filename: model.filename, status: 'completed', percent: 100 });
     return targetPath;
   }
 
   await ensureModelsDir();
-  logger.info(`⬇️  Downloading ${model.name}...`);
+  if (!silent) logger.info(`⬇️  Downloading ${model.name}...`);
+
+  setDownloadProgress(model.filename, {
+    modelName: model.name,
+    filename: model.filename,
+    status: 'downloading',
+    percent: 0,
+    downloadedBytes: 0,
+    totalBytes: 0,
+    startedAt: new Date().toISOString(),
+  });
 
   return new Promise((resolve, reject) => {
-    // Use curl for download with progress
     const args = [
       '-L',
       '--progress-bar',
@@ -178,17 +191,24 @@ export async function downloadModel(
     proc.stderr?.on('data', (data: Buffer) => {
       const str = data.toString();
       stderr += str;
-      // Parse progress from curl stderr
       const progressMatch = str.match(/(\d+(?:\.\d+)?)%/);
-      if (progressMatch && onProgress) {
-        onProgress(parseFloat(progressMatch[1]));
+      if (progressMatch) {
+        const pct = parseFloat(progressMatch[1]);
+        if (onProgress) onProgress(pct);
+        const byteMatch = str.match(/(\d+(?:\.\d+)?[kKMGT]?)\s*\/\s*(\d+(?:\.\d+)?[kKMGT]?)/i);
+        let downloadedBytes = 0;
+        let totalBytes = 0;
+        if (byteMatch) {
+          downloadedBytes = parseSize(byteMatch[1]);
+          totalBytes = parseSize(byteMatch[2]);
+        }
+        setDownloadProgress(model.filename, { percent: pct, downloadedBytes, totalBytes });
       }
     });
 
     proc.on('close', async (code) => {
       if (code === 0) {
         const stat = await fs.stat(targetPath);
-        // Update status
         const status = await readStatus();
         status.models[model.filename] = {
           downloaded: true,
@@ -196,21 +216,35 @@ export async function downloadModel(
           size: stat.size,
         };
         await writeStatus(status);
-        logger.info(`✅ ${model.name} downloaded (${formatSize(stat.size)}).`);
-        await notify(`${model.name} download completed`);
+        setDownloadProgress(model.filename, {
+          status: 'completed', percent: 100, downloadedBytes: stat.size, totalBytes: stat.size,
+          completedAt: new Date().toISOString(),
+        });
+        if (!silent) logger.info(`✅ ${model.name} downloaded (${formatSize(stat.size)}).`);
+        if (!silent) await notify(`${model.name} download completed`);
         resolve(targetPath);
       } else {
-        // Clean up partial download
-        try { await fs.remove(targetPath); } catch { /* ignore */ }
+        try { await fs.remove(targetPath); } catch { }
+        setDownloadProgress(model.filename, { status: 'failed', error: `exit code ${code}` });
         reject(new Error(`Download failed (exit code ${code}): ${stderr.slice(0, 200)}`));
       }
     });
 
     proc.on('error', async (err) => {
-      try { await fs.remove(targetPath); } catch { /* ignore */ }
+      try { await fs.remove(targetPath); } catch { }
+      setDownloadProgress(model.filename, { status: 'failed', error: err.message });
       reject(err);
     });
   });
+}
+
+function parseSize(size: string): number {
+  const match = size.match(/^(\d+(?:\.\d+)?)\s*([kKMGT]?)/);
+  if (!match) return 0;
+  const num = parseFloat(match[1]);
+  const unit = match[2].toUpperCase();
+  const multipliers: Record<string, number> = { K: 1024, M: 1024 ** 2, G: 1024 ** 3, T: 1024 ** 4 };
+  return Math.round(num * (multipliers[unit] ?? 1));
 }
 
 /** Download all built-in models (for initial setup). */
@@ -234,7 +268,23 @@ export function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-/** Legacy compatibility: download Qwen model. */
+export { loadDownloadProgress, listDownloadProgress } from '../utils/download-progress.js';
+export { getDownloadProgress, setDownloadProgress } from '../utils/download-progress.js';
+
+/** Download Qwen model silently in background with progress tracking. */
+export async function downloadQwenModelSilent(): Promise<void> {
+  await loadDownloadProgress();
+  const qwen = BUILTIN_MODELS[0];
+  if (await isModelDownloaded(qwen.filename)) {
+    setDownloadProgress(qwen.filename, { modelName: qwen.name, filename: qwen.filename, status: 'completed', percent: 100 });
+    return;
+  }
+  try {
+    await downloadModel(qwen, { silent: true });
+  } catch { }
+}
+
+/** Legacy compatibility: download Qwen model with logging. */
 export async function downloadQwenModel(): Promise<void> {
   const qwen = BUILTIN_MODELS[0];
   if (await isModelDownloaded(qwen.filename)) {

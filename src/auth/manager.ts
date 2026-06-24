@@ -1,8 +1,9 @@
+import stripAnsi from 'strip-ansi';
 import { logger } from '../utils/logger.js';
 import { AUTH_PROVIDERS } from './providers.js';
 import { saveCredentials, removeCredentials, listConfiguredProviders, getApiKey as storageGetApiKey, getTokens as storageGetTokens } from './storage.js';
 import { exec } from 'child_process';
-import type { AuthProvider, AuthTokens } from './storage.js';
+import type { AuthProvider, AuthTokens, DeviceCodeSession } from './storage.js';
 
 /**
  * Main auth manager that orchestrates authentication flows.
@@ -132,10 +133,11 @@ export class AuthManager {
           logger.info(`✔ Connected to ${provider.name}`);
           return true;
         }
-      } catch (error: any) {
+        } catch (error: any) {
         if (error.message === 'PENDING') {
-          // Still waiting
-          process.stdout.write('.');
+          if (i === 0 || i % 6 === 5) {
+            logger.info('· Still waiting for authentication...');
+          }
           continue;
         }
         throw error;
@@ -188,20 +190,89 @@ export class AuthManager {
     return cred !== null;
   }
 
+  /** Start device code flow (non-blocking — returns immediately). */
+  async startDeviceCodeFlow(providerName: string): Promise<boolean> {
+    const provider = this.providers[providerName];
+    if (!provider) {
+      logger.info(`\n✖ Unknown provider: ${providerName}`);
+      return false;
+    }
+    if (!provider.startDeviceCode || !provider.pollDeviceCode) {
+      logger.info(`\n✖ Provider ${provider.name} does not support device code flow.`);
+      return false;
+    }
+
+    const session = await provider.startDeviceCode();
+
+    logger.info('');
+    logger.info(`╭─ Device Code Authentication ──────────────────────────────╮`);
+    logger.info(`│ To authenticate with ${provider.name}:`);
+    logger.info(`│`);
+    logger.info(`│ 1. Open: ${session.verificationUri}`);
+    logger.info(`│ 2. Enter code: ${session.userCode}`);
+    logger.info(`│`);
+    logger.info(`│ Waiting... (background polling)`);
+    logger.info(`╰──────────────────────────────────────────────────────────╯`);
+
+    try {
+      const platform = process.platform;
+      const cmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
+      exec(`${cmd} ${session.verificationUri}`);
+    } catch {
+      // Ignore if browser can't be opened
+    }
+
+    // Poll in background (don't await — caller decides to await or not)
+    this.pollDeviceCodeInBackground(provider, session);
+    return true;
+  }
+
+  /** Poll device code in background. */
+  private async pollDeviceCodeInBackground(provider: AuthProvider, session: DeviceCodeSession): Promise<void> {
+    const maxAttempts = Math.floor((session.expiresAt - Date.now()) / (session.interval * 1000));
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((resolve) => setTimeout(resolve, session.interval * 1000));
+      try {
+        const tokens = await provider.pollDeviceCode!(session);
+        if (tokens.accessToken) {
+          await saveCredentials(provider.name, {
+            provider: provider.name,
+            type: 'device-code',
+            tokens,
+            lastValidated: new Date().toISOString(),
+          });
+          logger.info(`\n✔ Connected to ${provider.name}`);
+          return;
+        }
+      } catch (error: any) {
+        if (error.message === 'PENDING') {
+          if (i % 6 === 5) {
+            logger.info('· Still waiting for authentication...');
+          }
+          continue;
+        }
+        logger.info(`\n✖ Authentication failed: ${error.message}`);
+        return;
+      }
+    }
+    logger.info('\n✖ Authentication timed out.');
+  }
+
   /** Show auth status for all providers. */
   async showStatus(): Promise<void> {
     const configured = await listConfiguredProviders();
 
-    logger.info('\n┌─────────────────────── Auth Status ───────────────────────┐');
-    for (const [name, provider] of Object.entries(this.providers)) {
+    logger.info('');
+    logger.info('╭─ Auth Status ───────────────────────────────────────────╮');
+    for (const name of Object.keys(this.providers)) {
       const isConfigured = configured.includes(name);
-      const icon = isConfigured ? '\x1b[32m✔\x1b[0m' : '\x1b[90m✘\x1b[0m';
-      const status = isConfigured ? '\x1b[32mconnected\x1b[0m' : '\x1b[90mnot configured\x1b[0m';
-      logger.info(`│ ${icon} ${name} (${provider.type}): ${status}`);
+      const icon = isConfigured ? '✔' : '·';
+      const status = isConfigured ? 'connected' : 'not set';
+      const label = `${icon} ${name}`;
+      const padding = Math.max(1, 40 - stripAnsi(label).length);
+      logger.info(`│ ${label}${' '.repeat(padding)}${status} │`);
     }
-    logger.info('└──────────────────────────────────────────────────────────┘');
-    logger.info('Usage: /connect <provider>  — Set up authentication');
-    logger.info('       /auth logout <provider> — Remove credentials');
+    logger.info('╰────────────────────────────────────────────────────────╯');
   }
 }
 

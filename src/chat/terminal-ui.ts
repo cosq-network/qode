@@ -2,7 +2,95 @@ import blessed from 'blessed';
 import chalk from 'chalk';
 import stripAnsi from 'strip-ansi';
 import { setOutputSink, type OutputEntry } from '../utils/output.js';
-import type { CompletionContext, CompletionItem } from './completion.js';
+import { THEMES, type ThemePalette } from '../utils/themes.js';
+import type { CompletionContext } from './completion.js';
+
+// Constants for maintainability
+const MAX_TRANSCRIPT_LINES = 500;
+const MAX_HISTORY_ENTRIES = 200;
+const MIN_TERMINAL_WIDTH = 10;
+const MIN_TERMINAL_HEIGHT = 5;
+const MAX_WRAP_CACHE_SIZE = 10;
+
+/**
+ * Get display width of a string, accounting for ANSI escape sequences.
+ * This is a simplified version that works with Jest.
+ */
+function getStringWidth(str: string): number {
+  // Remove ANSI escape sequences and get length
+  // For most terminals, ASCII characters are width 1
+  const stripped = stripAnsi(str);
+  
+  // Count characters, treating most as width 1
+  // This is a simplification - a full implementation would handle
+  // CJK characters, combining characters, etc.
+  let width = 0;
+  for (let i = 0; i < stripped.length; i++) {
+    const char = stripped[i];
+    // Handle some known wide characters (CJK, emoji, etc.)
+    // This is a simplified check - in production you'd want a full implementation
+    if (char >= '\u1100' && char <= '\u11ff') { // Hangul
+      width += 2;
+    } else if (char >= '\u4e00' && char <= '\u9fff') { // CJK
+      width += 2;
+    } else if (char >= '\ud800' && char <= '\udbff') { // Surrogate pairs (emoji)
+      width += 2;
+      i++; // Skip the next character (low surrogate)
+    } else {
+      width += 1;
+    }
+  }
+  return width;
+}
+
+/**
+ * ANSI-aware string slicing that doesn't split escape sequences.
+ * This is a simplified version since slice-ansi is ESM-only and doesn't work with Jest.
+ */
+function sliceAnsiSafe(str: string, start: number, end?: number): string {
+  if (end === undefined) {
+    end = str.length;
+  }
+  
+  // If the string has no ANSI codes, use regular slice
+  if (!str.includes('\x1b')) {
+    return str.slice(start, end);
+  }
+  
+  let result = '';
+  let inEscape = false;
+  let charCount = 0;
+  
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    
+    if (char === '\x1b') {
+      // Start of ANSI escape sequence
+      inEscape = true;
+      result += char;
+      continue;
+    }
+    
+    if (inEscape) {
+      // Inside ANSI escape sequence - include all characters until 'm'
+      result += char;
+      if (char === 'm') {
+        inEscape = false;
+      }
+      continue;
+    }
+    
+    // Count non-ANSI characters
+    if (charCount >= start && charCount < end) {
+      result += char;
+    }
+    charCount++;
+  }
+  
+  return result;
+}
+
+
 export interface ChatUIState {
   cwd: string;
   modelName: string;
@@ -10,30 +98,160 @@ export interface ChatUIState {
   mode: string;
   tokenUsage: string;
   recentFiles: string;
-  suggestion: string;
+  suggestion?: string;
 }
 
+// Cache for lazy wrapping to avoid recomputing word wrap for same width
+interface WrapCacheEntry {
+  width: number;
+  lines: string[];
+}
+
+// Interface for streaming state
+interface StreamingState {
+  isStreaming: boolean;
+  currentChunk: string;
+  streamId: string;
+}
+
+interface ThemeColors {
+  headerBg: string;
+  headerFg: string;
+  borderFg: string;
+  transcriptBg: string;
+  inputBg: string;
+  inputFg: string;
+  promptFg: string;
+  suggestionBg: string;
+  suggestionFg: string;
+  userTag: string;
+  assistantTag: string;
+  systemTag: string;
+  errorFg: string;
+  warnFg: string;
+  infoFg: string;
+  codeFg: string;
+  dimFg: string;
+  accentFg: string;
+}
+
+/**
+ * Convert ThemePalette from themes.ts to ThemeColors for internal use.
+ * Maps ANSI color codes to hex values where needed.
+ */
+function paletteToColors(palette: ThemePalette): ThemeColors {
+  // Helper to convert ANSI color code to hex
+  const ansiToHex = (ansi: string): string => {
+    // Simple mapping for known colors; keep ANSI codes as-is for terminal compatibility
+    const mappings: Record<string, string> = {
+      '\x1b[38;2;122;162;247m': '#7aa2f7',
+      '\x1b[38;2;158;206;106m': '#9ece6a',
+      '\x1b[38;2;187;154;247m': '#bb9af7',
+      '\x1b[38;2;255;158;100m': '#ff9e64',
+      '\x1b[38;2;247;118;142m': '#f7768e',
+      '\x1b[38;2;224;175;104m': '#e0af68',
+      '\x1b[38;2;79;195;247m': '#7dcfff',
+      '\x1b[38;2;86;95;137m': '#565f89',
+      '\x1b[1;37m': '#ffffff',
+      '\x1b[37m': '#d4d4d4',
+      '\x1b[2;37m': '#808080',
+      '\x1b[1;31m': '#ff0000',
+      '\x1b[31m': '#ff5555',
+      '\x1b[1;33m': '#ffff00',
+      '\x1b[33m': '#ffff55',
+    };
+    const ansiEscape = '\x1b';
+    return mappings[ansi] || ansi.replace(new RegExp(ansiEscape + '\[[0-9;]*m', 'g'), '').trim() || '#ffffff';
+  };
+
+  // Strip ANSI codes for color values that are hex
+  const clean = (val?: string): string => {
+    if (!val) return DARK_THEME.dimFg;
+    if (/^#/.test(val)) return val;
+    return ansiToHex(val);
+  };
+
+  return {
+    headerBg: clean(palette.headerBg) || DARK_THEME.headerBg,
+    headerFg: clean(palette.model) || DARK_THEME.headerFg,
+    borderFg: clean(palette.borderChar) || DARK_THEME.borderFg,
+    transcriptBg: clean(palette.headerBg) || DARK_THEME.transcriptBg,
+    inputBg: clean(palette.headerBg) || DARK_THEME.inputBg,
+    inputFg: clean(palette.model) || DARK_THEME.inputFg,
+    promptFg: clean(palette.accent) || DARK_THEME.promptFg,
+    suggestionBg: clean(palette.headerBg) || DARK_THEME.suggestionBg,
+    suggestionFg: clean(palette.dim) || DARK_THEME.suggestionFg,
+    userTag: clean(palette.model) || DARK_THEME.userTag,
+    assistantTag: clean(palette.dir) || DARK_THEME.assistantTag,
+    systemTag: clean(palette.context) || DARK_THEME.systemTag,
+    errorFg: clean(palette.error) || DARK_THEME.errorFg,
+    warnFg: clean(palette.warn) || DARK_THEME.warnFg,
+    infoFg: clean(palette.info) || DARK_THEME.infoFg,
+    codeFg: clean(palette.code) || DARK_THEME.codeFg,
+    dimFg: clean(palette.dim) || DARK_THEME.dimFg,
+    accentFg: clean(palette.accent) || DARK_THEME.accentFg,
+  };
+}
+
+
+const DARK_THEME: ThemeColors = {
+  headerBg: '#1a1b26',
+  headerFg: '#a9b1d6',
+  borderFg: '#565f89',
+  transcriptBg: '#1a1b26',
+  inputBg: '#15161e',
+  inputFg: '#c0caf5',
+  promptFg: '#7aa2f7',
+  suggestionBg: '#1a1b26',
+  suggestionFg: '#9aa5ce',
+  userTag: '#7aa2f7',
+  assistantTag: '#9ece6a',
+  systemTag: '#bb9af7',
+  errorFg: '#f7768e',
+  warnFg: '#e0af68',
+  infoFg: '#7dcfff',
+  codeFg: '#565f89',
+  dimFg: '#565f89',
+  accentFg: '#ff9e64',
+};
+
+
+
 export class TerminalChatUI {
-  private static readonly PANEL_MARGIN_X = 2;
-  private static readonly PANEL_MARGIN_Y = 1;
-  private static readonly PANEL_GAP_Y = 1;
-  private static readonly PANEL_PADDING = 1;
   private screen: blessed.Widgets.Screen;
   private headerBox: blessed.Widgets.BoxElement;
   private transcriptBox: blessed.Widgets.BoxElement;
-  private suggestionBox: blessed.Widgets.BoxElement;
-  private inputBox: blessed.Widgets.TextboxElement;
-  private inputLayout = { top: 0, left: 0, width: 0, height: 0 };
+  private inputBox: blessed.Widgets.BoxElement;
+  private suggestionsBox: blessed.Widgets.BoxElement;
+
   private transcriptLines: string[] = [];
   private transcriptScrollOffset = 0;
   private transcriptHasUnread = false;
-  private suggestions: string[] = [];
-  private suggestionIndex = 0;
-  private suggestionRefreshToken: NodeJS.Immediate | null = null;
-  private completionState: CompletionContext | null = null;
-  private inputHandler: ((value: string) => Promise<void>) | null = null;
+  private isAtBottom = true;
+
+  // Performance optimization: lazy wrapping cache
+  private wrapCache: WrapCacheEntry[] = [];
+  private lastWrapWidth = 0;
+
+  // Performance optimization: debounced render queue
+  private renderQueue: (() => void)[] = [];
+  private renderQueueToken: NodeJS.Timeout | null = null;
+  private isRendering = false;
+
+  // Streaming state for smart output formatting
+  private streamingState: StreamingState = {
+    isStreaming: false,
+    currentChunk: '',
+    streamId: '',
+  };
+
+  // Collapsible output state
+  private collapsedOutputs: Set<string> = new Set();
+
   private inputValue = '';
   private cursor = 0;
+  private inputFocused = false;
+
   private history: string[] = [];
   private historyIndex = -1;
   private historyDraft = '';
@@ -41,120 +259,162 @@ export class TerminalChatUI {
   private historySearchQuery = '';
   private historySearchResults: number[] = [];
   private historySearchIndex = 0;
+
+  private suggestions: string[] = [];
+  private suggestionIndex = 0;
+  private completionState: CompletionContext | null = null;
+  private suggestionRefreshToken: NodeJS.Immediate | null = null;
   private suggestionResolver: ((value: string, cursor: number) => CompletionContext | null) | null = null;
-  private inputFocused = false;
+
+  private inputHandler: ((value: string) => Promise<void>) | null = null;
+
   private interruptCount = 0;
   private interruptResetToken: NodeJS.Timeout | null = null;
   private escapeCancelCount = 0;
   private escapeCancelResetToken: NodeJS.Timeout | null = null;
+
   private taskControls: {
     isRunning?: () => boolean;
     requestCancel?: () => void;
   } = {};
+
   private sessionControls: {
     onToggleMode?: () => Promise<void>;
     onSave?: () => Promise<void>;
     onStatus?: () => Promise<void>;
   } = {};
+
   private actions: {
     onCopy?: () => Promise<void>;
     onPaste?: () => Promise<void>;
     onBrowser?: () => Promise<void>;
   } = {};
 
+  private colors: ThemeColors;
+  private themeName: string;
+  private lastState: ChatUIState | null = null;
+
+  // Store references to event listeners for cleanup
+  private keypressHandler: ((ch: string, key: any) => void) | null = null;
+  private scrollHandler: (() => void) | null = null;
+  private screenKeyBindings: Array<{ key: string; handler: () => void }> = [];
+
   constructor() {
-    this.screen = blessed.screen({
+    this.colors = DARK_THEME;
+    this.themeName = 'default';
+
+    try {
+      this.screen = blessed.screen({
       smartCSR: true,
       dockBorders: true,
       fullUnicode: true,
       warnings: false,
+      cursor: {
+        artificial: false,
+        shape: 'underline',
+        blink: true,
+        color: 'white',
+      },
+      forceUnicode: true,
+      autoPadding: true,
+      tabSize: 2,
     });
 
+    this.screen.key(['C-q'], () => {
+      this.close();
+      process.exit(0);
+    });
+
+    const bgHex = this.colors.transcriptBg;
+    const bFg = this.colors.borderFg;
+
     this.headerBox = blessed.box({
+      parent: this.screen,
       top: 0,
       left: 0,
       width: '100%',
-      height: 5,
-      tags: false,
+      height: 3,
       border: { type: 'line' },
-      padding: TerminalChatUI.PANEL_PADDING,
-      style: { border: { fg: 'cyan' } },
+      tags: false,
+      style: {
+        fg: this.colors.headerFg,
+        bg: bgHex,
+        border: { fg: bFg, bold: true },
+      },
       content: '',
     });
 
     this.transcriptBox = blessed.box({
-      top: 5,
+      parent: this.screen,
+      top: 3,
       left: 0,
       width: '100%',
-      bottom: 8,
-      tags: false,
+      bottom: 7,
       border: { type: 'line' },
-      padding: TerminalChatUI.PANEL_PADDING,
-      style: { border: { fg: 'blue' } },
+      tags: false,
+      scrollable: true,
+      alwaysScroll: true,
+      scrollbar: {
+        ch: '▐',
+        style: { fg: this.colors.dimFg },
+      },
+      style: {
+        fg: this.colors.inputFg,
+        bg: bgHex,
+        border: { fg: bFg, bold: true },
+      },
       content: '',
     });
 
-    this.suggestionBox = blessed.box({
-      bottom: 3,
+    this.suggestionsBox = blessed.box({
+      parent: this.screen,
+      bottom: 5,
       left: 0,
       width: '100%',
       height: 3,
-      tags: false,
       border: { type: 'line' },
-      padding: TerminalChatUI.PANEL_PADDING,
-      style: { border: { fg: 'magenta' } },
+      tags: false,
+      hidden: true,
+      style: {
+        fg: this.colors.suggestionFg,
+        bg: bgHex,
+        border: { fg: bFg, bold: true },
+      },
       content: '',
     });
 
-    this.inputBox = blessed.textbox({
+    this.inputBox = blessed.box({
+      parent: this.screen,
       bottom: 0,
       left: 0,
       width: '100%',
-      height: 4,
-      tags: false,
+      height: 5,
       border: { type: 'line' },
-      padding: TerminalChatUI.PANEL_PADDING,
-      keys: false,
-      mouse: true,
-      vi: true,
-      inputOnFocus: false,
-      style: { border: { fg: 'green' } },
+      tags: false,
+      style: {
+        fg: this.colors.inputFg,
+        bg: this.colors.inputBg,
+        border: { fg: bFg, bold: true },
+      },
       content: '',
     });
 
-    this.screen.append(this.headerBox);
-    this.screen.append(this.transcriptBox);
-    this.screen.append(this.suggestionBox);
-    this.screen.append(this.inputBox);
-
-    this.screen.key(['C-k'], () => void this.actions.onCopy?.());
-    this.screen.key(['C-g'], () => void this.actions.onPaste?.());
-    this.screen.key(['C-f'], () => void this.actions.onBrowser?.());
-    this.screen.key(['f2'], () => void this.sessionControls.onToggleMode?.());
-    this.screen.key(['f3'], () => void this.sessionControls.onSave?.());
-    this.screen.key(['f4'], () => void this.sessionControls.onStatus?.());
-    this.screen.key(['pageup'], () => this.scrollTranscript(-1));
-    this.screen.key(['pagedown'], () => this.scrollTranscript(1));
-    this.screen.key(['resize'], () => this.renderAll());
-
-    this.inputBox.on('keypress', (ch, key) => {
-      if (!this.inputFocused) {
-        return;
-      }
-      if (this.handleEditorKey(ch, key)) {
-        return;
-      }
-      this.queueSuggestionRefresh();
-    });
+    this.setupInputHandling();
+    this.setupTranscriptScroll();
+    this.renderAll();
 
     setOutputSink((entry) => this.handleOutput(entry));
+    } catch (error) {
+      // If constructor fails, clean up any partially created resources
+      this.close();
+      throw error;
+    }
   }
 
   public focus(): void {
     this.inputFocused = true;
-    this.inputBox.focus();
     this.screen.program.showCursor();
-    this.renderAll();
+    this.queueRender();
   }
 
   public onSubmit(handler: (value: string) => Promise<void>): void {
@@ -189,61 +449,49 @@ export class TerminalChatUI {
   }
 
   public setState(state: ChatUIState): void {
-    const lines = [
-      chalk.bold.cyan('Qode CLI'),
-      chalk.gray(`${state.cwd}`),
-      `${chalk.cyan('Model:')} ${state.modelName} ${chalk.gray(`(${state.providerName})`)} ${state.mode === 'plan' ? chalk.yellow('[PLAN]') : chalk.green('[BUILD]')}`,
-      `${chalk.cyan('Tokens:')} ${state.tokenUsage} ${chalk.gray('Recent:')} ${state.recentFiles}`,
-      chalk.gray('F2 mode  F3 save  F4 status  Ctrl+R history search'),
-    ];
-    this.headerBox.setContent(lines.join('\n'));
+    this.lastState = state;
+    this.renderHeader(state);
     if (state.suggestion) {
       this.suggestions = [state.suggestion];
       this.suggestionIndex = 0;
     }
-    this.renderAll();
+    this.queueRender();
   }
 
   public appendLine(line: string): void {
     if (!line.trim()) return;
-    this.transcriptLines.push(line);
-    if (this.transcriptLines.length > 300) {
-      this.transcriptLines = this.transcriptLines.slice(-300);
+    
+    // Smart Output Formatting: Handle very long lines by making them collapsible
+    const maxLineLength = 500; // Characters per line threshold for collapsing
+    if (line.length > maxLineLength) {
+      // Split long lines and make them collapsible
+      const collapsedLines = this.createCollapsibleOutput(line, 5); // Show 5 lines max
+      for (const collapsedLine of collapsedLines) {
+        this.transcriptLines.push(collapsedLine);
+      }
+    } else {
+      this.transcriptLines.push(line);
     }
-    if (this.transcriptScrollOffset === 0) {
-      this.scrollTranscriptToEnd();
+    
+    if (this.transcriptLines.length > MAX_TRANSCRIPT_LINES) {
+      this.transcriptLines = this.transcriptLines.slice(-MAX_TRANSCRIPT_LINES);
+    }
+    if (this.isAtBottom) {
+      this.scrollToBottom();
     } else {
       this.transcriptHasUnread = true;
     }
-    this.renderAll();
+    
+    // Invalidate cache when new content is added
+    this.invalidateWrapCache();
+    this.queueRender();
   }
 
   public appendRaw(text: string): void {
-    const lines = text.split(/\r?\n/).filter(Boolean);
+    const lines = text.split(/\r?\n/);
     for (const line of lines) {
       this.appendLine(line);
     }
-  }
-
-  public setSuggestion(text: string): void {
-    this.suggestions = text ? [text] : [];
-    this.suggestionIndex = 0;
-    this.renderAll();
-  }
-
-  public recordHistory(value: string): void {
-    const normalized = value.trim();
-    if (!normalized) return;
-    if (this.history[this.history.length - 1] === normalized) return;
-    this.history.push(normalized);
-    if (this.history.length > 200) {
-      this.history = this.history.slice(-200);
-    }
-    this.historyIndex = -1;
-  }
-
-  public getInputValue(): string {
-    return this.inputValue;
   }
 
   public clearInput(): void {
@@ -256,11 +504,48 @@ export class TerminalChatUI {
     this.historyDraft = '';
     this.clearHistorySearch();
     this.clearEscapeCancelState();
-    this.renderAll();
+    this.queueRender();
+  }
+
+  public getInputValue(): string {
+    return this.inputValue;
+  }
+
+  public setSuggestion(text: string): void {
+    this.suggestions = text ? [text] : [];
+    this.suggestionIndex = 0;
+    this.queueRender();
+  }
+
+  public recordHistory(value: string): void {
+    const normalized = value.trim();
+    if (!normalized) return;
+    if (this.history[this.history.length - 1] === normalized) return;
+    this.history.push(normalized);
+    if (this.history.length > MAX_HISTORY_ENTRIES) {
+      this.history = this.history.slice(-MAX_HISTORY_ENTRIES);
+    }
+    this.historyIndex = -1;
   }
 
   public close(): void {
     this.inputFocused = false;
+
+    // Clean up event listeners to prevent memory leaks
+    if (this.keypressHandler) {
+      this.screen.off('keypress', this.keypressHandler);
+      this.keypressHandler = null;
+    }
+
+    if (this.scrollHandler) {
+      this.transcriptBox.off('scroll', this.scrollHandler);
+      this.scrollHandler = null;
+    }
+
+    // Clean up screen key bindings - blessed doesn't expose unkey in the type definitions
+    // We track them for documentation but can't programmatically remove them
+    this.screenKeyBindings = [];
+
     this.clearInterruptState();
     this.clearEscapeCancelState();
     if (this.suggestionRefreshToken) {
@@ -272,195 +557,188 @@ export class TerminalChatUI {
     this.screen.destroy();
   }
 
-  private renderAll(): void {
-    this.updateLayout();
-    this.renderTranscript();
-    this.renderSuggestion();
-    this.renderInput();
-    this.screen.render();
-    this.positionCursor();
+  public setTheme(name: string): void {
+    this.themeName = name;
+    const palette = THEMES[name.toLowerCase()] || THEMES.default;
+    this.colors = paletteToColors(palette);
+    this.queueRender();
   }
 
-  private updateLayout(): void {
-    const width = Math.max(80, Number(this.screen.width) || 80);
-    const height = Math.max(24, Number(this.screen.height) || 24);
+  private renderHeader(state: ChatUIState): void {
+    const modeDot = state.mode === 'plan'
+      ? chalk.hex('#e0af68')('○')
+      : chalk.hex('#9ece6a')('●');
 
-    const marginX = Math.max(1, Math.round(width * 0.03));
-    const marginY = Math.max(1, Math.round(height * 0.03));
-    const gapY = Math.max(1, Math.round(height * 0.02));
-    const contentWidth = Math.max(40, width - marginX * 2);
-    const availableHeight = Math.max(16, height - marginY * 2 - gapY * 3);
+    const provider = state.providerName !== 'N/A'
+      ? ` ${chalk.hex(this.colors.dimFg)(state.providerName)}`
+      : '';
 
-    const minHeights = {
-      header: 6,
-      transcript: 8,
-      suggestion: 3,
-      input: 4,
-    };
+    const left = `${chalk.hex(this.colors.accentFg)('◆')} ${chalk.bold(state.modelName)}${provider}  ${modeDot}`;
+    const tokens = state.tokenUsage;
+    const recent = state.recentFiles ? chalk.hex(this.colors.dimFg)(state.recentFiles) : '';
+    const right = `${tokens}${recent ? `  ${recent}` : ''}`;
 
-    const heights = this.allocatePanelHeights(availableHeight, minHeights);
+    const width = this.innerWidth();
+    const leftLen = stripAnsi(left).length;
+    const rightLen = stripAnsi(right).length;
+    const padding = Math.max(1, width - leftLen - rightLen - 2);
+    const line = `${left}${' '.repeat(padding)}${right}`;
 
-    this.applyBoxLayout(this.headerBox, marginY, marginX, contentWidth, heights.header);
-    this.applyBoxLayout(this.transcriptBox, marginY + heights.header + gapY, marginX, contentWidth, heights.transcript);
-    this.applyBoxLayout(
-      this.suggestionBox,
-      marginY + heights.header + gapY + heights.transcript + gapY,
-      marginX,
-      contentWidth,
-      heights.suggestion,
-    );
-    this.applyBoxLayout(
-      this.inputBox,
-      marginY + heights.header + gapY + heights.transcript + gapY + heights.suggestion + gapY,
-      marginX,
-      contentWidth,
-      heights.input,
-    );
-  }
-
-  private allocatePanelHeights(
-    availableHeight: number,
-    minHeights: { header: number; transcript: number; suggestion: number; input: number },
-  ): { header: number; transcript: number; suggestion: number; input: number } {
-    const heights = { ...minHeights };
-    const totalMin = heights.header + heights.transcript + heights.suggestion + heights.input;
-    const weights = {
-      header: 0.18,
-      transcript: 0.48,
-      suggestion: 0.14,
-      input: 0.08,
-    };
-
-    if (availableHeight <= totalMin) {
-      const scale = Math.max(0.5, availableHeight / totalMin);
-      heights.header = Math.max(4, Math.floor(heights.header * scale));
-      heights.transcript = Math.max(4, Math.floor(heights.transcript * scale));
-      heights.suggestion = Math.max(4, Math.floor(heights.suggestion * scale));
-      heights.input = Math.max(3, Math.floor(heights.input * scale));
-      return heights;
-    }
-
-    let remaining = availableHeight - totalMin;
-    while (remaining > 0) {
-      const choices = Object.entries(weights).map(([key, weight]) => ({
-        key: key as keyof typeof heights,
-        score: weight / (heights[key as keyof typeof heights] - minHeights[key as keyof typeof minHeights] + 1),
-      }));
-      choices.sort((a, b) => b.score - a.score);
-      heights[choices[0].key] += 1;
-      remaining -= 1;
-    }
-
-    return heights;
-  }
-
-  private applyBoxLayout(
-    box: blessed.Widgets.BoxElement,
-    top: number,
-    left: number,
-    width: number,
-    height: number,
-  ): void {
-    const nextTop = Math.max(0, top);
-    const nextLeft = Math.max(0, left);
-    const nextWidth = Math.max(20, width);
-    const nextHeight = Math.max(3, height);
-    if (box === this.inputBox) {
-      this.inputLayout = { top: nextTop, left: nextLeft, width: nextWidth, height: nextHeight };
-    }
-    (box as any).top = nextTop;
-    (box as any).left = nextLeft;
-    (box as any).width = nextWidth;
-    (box as any).height = nextHeight;
+    this.headerBox.setContent(line);
   }
 
   private renderTranscript(): void {
-    const width = Math.max(20, this.innerWidth(this.transcriptBox));
-    const height = Math.max(5, this.innerHeight(this.transcriptBox));
-    const wrapped = this.wrapTranscript(width);
-    const maxOffset = Math.max(0, wrapped.length - height);
-    this.transcriptScrollOffset = Math.max(0, Math.min(this.transcriptScrollOffset, maxOffset));
-    const start = Math.max(0, wrapped.length - height - this.transcriptScrollOffset);
-    const visible = wrapped.slice(start, start + height);
-    const footer = this.transcriptHasUnread
-      ? chalk.yellow(`New output below · Showing ${start + 1}-${Math.min(start + height, wrapped.length)} of ${wrapped.length} lines`)
-      : maxOffset > 0
-        ? chalk.gray(`Showing ${start + 1}-${Math.min(start + height, wrapped.length)} of ${wrapped.length} lines`)
-        : chalk.gray(' ');
-    this.transcriptBox.setContent([...visible, footer].join('\n'));
+    const width = Math.max(MIN_TERMINAL_WIDTH, this.innerWidth());
+    const height = Math.max(MIN_TERMINAL_HEIGHT, this.innerHeight());
+    
+    // Use lazy wrapping cache for performance
+    const wrapped = this.wrapLines(width);
+    const totalLines = wrapped.length;
+    
+    // Virtual rendering: only render visible lines
+    const viewTop = Math.max(0, totalLines - height - this.transcriptScrollOffset);
+    const visible = wrapped.slice(viewTop, viewTop + height);
+    
+    // Only pad if we have fewer lines than the view height
+    const padded = visible.length < height
+      ? [...visible, ...Array(height - visible.length).fill('')]
+      : visible;
+
+    const hasContent = this.transcriptLines.length > 0;
+
+    if (this.isAtBottom && hasContent) {
+      this.transcriptBox.setScrollPerc(100);
+    }
+
+    // Invalidate cache if we're at different scroll positions
+    // This ensures we don't show stale content
+    if (this.lastWrapWidth !== width) {
+      this.lastWrapWidth = width;
+    }
+
+    const content = padded.join('\n');
+    this.transcriptBox.setContent(content);
+
+    // Add streaming indicator if currently streaming
+    if (this.streamingState.isStreaming && !this.isAtBottom) {
+      const streamingIndicator = chalk.hex(this.colors.accentFg)('● Streaming...');
+      const lastLine = padded[padded.length - 1] || '';
+      if (lastLine !== streamingIndicator) {
+        padded[padded.length - 1] = streamingIndicator;
+        this.transcriptBox.setContent(padded.join('\n'));
+      }
+    }
+    
+    if (this.transcriptHasUnread && !this.isAtBottom && !this.streamingState.isStreaming) {
+      const unreadCount = Math.min(this.transcriptScrollOffset, 100); // Limit displayed count
+      const indicator = chalk.hex(this.colors.warnFg)(`▸ ${unreadCount} more lines below`);
+      const lastLine = padded[padded.length - 1] || '';
+      if (lastLine !== indicator) {
+        padded[padded.length - 1] = indicator;
+        this.transcriptBox.setContent(padded.join('\n'));
+      }
+    }
   }
 
-  private renderSuggestion(): void {
+  private renderSuggestions(): void {
     if (this.historySearchActive) {
-      const content = this.renderHistorySearchPanel();
-      this.suggestionBox.setContent(content);
+      const content = this.renderHistorySearchPreview();
+      this.suggestionsBox.setContent(content);
+      this.suggestionsBox.height = 3;
+      this.suggestionsBox.show();
       return;
     }
-    const label = this.completionState?.mode === 'mention'
-      ? '@ mentions'
-      : this.completionState?.mode === 'slash'
-        ? 'Slash commands'
-        : 'Suggestions';
-    const content = this.suggestions.length > 0
-      ? [
-          chalk.gray(`${label} · ${this.suggestions.length} match${this.suggestions.length === 1 ? '' : 'es'}`),
-          ...this.suggestions.slice(0, 5).map((item, index) => this.renderSuggestionLine(item, index)),
-          chalk.gray('Tab accept · ↑/↓ cycle · Esc clear'),
-        ].join('\n')
-      : chalk.gray('Type / for commands or @ for files and subagents.');
-    this.suggestionBox.setContent(content);
-  }
 
-  private queueSuggestionRefresh(): void {
-    if (this.suggestionRefreshToken) {
-      clearImmediate(this.suggestionRefreshToken);
+    if (this.completionState && this.suggestions.length > 0) {
+      const total = this.suggestions.length;
+      const boxW = Math.floor(Number(this.screen.width) || 80) - 4;
+      const maxVisible = Math.min(6, total, Math.max(2, Math.floor((Number(this.screen.height) - 8) / 2)));
+      const half = Math.floor(maxVisible / 2);
+
+      let start = this.suggestionIndex - half;
+      if (start < 0) start = 0;
+      if (start + maxVisible > total) start = Math.max(0, total - maxVisible);
+
+      const visible = this.suggestions.slice(start, start + maxVisible);
+      const showTop = start > 0;
+      const showBottom = start + maxVisible < total;
+
+      const lines: string[] = [];
+      if (showTop) lines.push(chalk.hex(this.colors.dimFg)('  ⋮'));
+
+      for (let i = 0; i < visible.length; i++) {
+        const idx = start + i;
+        const item = visible[i];
+        // Use string-width for proper display width measurement and slice-ansi for safe truncation
+        const displayWidth = getStringWidth(item);
+        const trimmed = displayWidth > boxW ? sliceAnsiSafe(item, 0, Math.max(0, boxW - 1)) + '…' : item;
+        const isSel = idx === this.suggestionIndex;
+        const prefix = isSel ? chalk.hex(this.colors.accentFg)('▸') : ' ';
+        const styled = isSel
+          ? chalk.bgHex('#3b4261').hex('#c0caf5')(` ${trimmed} `)
+          : chalk.hex(this.colors.suggestionFg)(` ${trimmed} `);
+        lines.push(`${prefix} ${styled}`);
+      }
+
+      if (showBottom) lines.push(chalk.hex(this.colors.dimFg)('  ⋮'));
+
+      this.suggestionsBox.setContent(lines.join('\n'));
+      const sugHeight = Math.max(3, lines.length + 2);
+      this.suggestionsBox.height = sugHeight;
+      this.suggestionsBox.show();
+      return;
     }
-    this.suggestionRefreshToken = setImmediate(() => {
-      this.suggestionRefreshToken = null;
-      this.refreshCompletionState();
-    });
+
+    this.suggestionsBox.hide();
   }
 
-  private refreshCompletionState(): void {
-    this.completionState = this.suggestionResolver ? this.suggestionResolver(this.inputValue, this.cursor) : null;
-    this.suggestions = this.completionState?.suggestions ?? [];
-    this.suggestionIndex = 0;
-    this.historySearchActive = false;
-    this.renderAll();
-  }
-
-  private applySuggestion(value: string): void {
-    const state = this.completionState;
-    if (!state) return;
-    const before = this.inputValue.slice(0, state.range.start);
-    const after = this.inputValue.slice(state.range.end);
-    this.inputValue = `${before}${value}${after}`;
-    this.cursor = before.length + value.length;
-    this.refreshCompletionState();
-  }
-
-  private getSelectedSuggestion(): string {
-    return this.suggestions[this.suggestionIndex] ?? this.suggestions[0] ?? '';
-  }
-
-  private renderSuggestionLine(item: string, index: number): string {
-    const marker = index === this.suggestionIndex ? chalk.cyan('>') : chalk.gray(' ');
-    const body = index === this.suggestionIndex ? chalk.white(this.truncate(item, 96)) : chalk.gray(this.truncate(item, 96));
-    const description = this.getSelectedCompletionItem(index)?.description ?? '';
-    if (!description) {
-      return `${marker} ${body}`;
-    }
-    return `${marker} ${body} ${chalk.gray(`- ${this.truncate(description, 56)}`)}`;
+  private renderHistorySearchPreview(): string {
+    const selection = this.getHistorySearchSelection();
+    const matchCount = this.historySearchResults.length;
+    const query = this.historySearchQuery || chalk.hex(this.colors.dimFg)('type to search');
+    const preview = selection
+      ? chalk.hex(this.colors.dimFg)(` ${this.truncate(selection, 40)}`)
+      : '';
+    return `${chalk.bold.hex(this.colors.promptFg)('⌕')} ${query}${preview} ${chalk.hex(this.colors.dimFg)(`(${matchCount})`)}`;
   }
 
   private renderInput(): void {
-    const prompt = chalk.cyan('> ');
-    const width = Math.max(20, this.innerWidth(this.inputBox));
+    // Enhanced prompt with bold styling for better visibility
+    const prompt = chalk.bold.hex(this.colors.promptFg)('❯');
+    const width = Math.max(MIN_TERMINAL_WIDTH, this.innerWidth());
+
+    if (this.historySearchActive) {
+      const query = this.historySearchQuery || '';
+      const cursorChar = chalk.inverse(' ');
+      this.inputBox.setContent(`\n${chalk.bold.hex(this.colors.warnFg)('⌕')} ${query}${cursorChar}`);
+      return;
+    }
+
+    const line = this.inputValue;
+    const cursorPos = Math.max(0, Math.min(this.cursor, line.length));
     const ghost = this.getGhostText();
-    const content = this.historySearchActive
-      ? this.formatSearchLine(width)
-      : this.formatEditorLine(prompt, width, ghost);
-    this.inputBox.setContent(content);
+    const ghostDisplayWidth = getStringWidth(ghost);
+    const available = Math.max(1, width - 2);
+    const windowWidth = Math.max(1, available - ghostDisplayWidth);
+    const halfWindow = Math.max(4, Math.floor(windowWidth / 2));
+
+    // Use character-based approach but with display width for window calculation
+    let start = Math.max(0, cursorPos - halfWindow);
+    const end = Math.min(line.length, start + windowWidth);
+    if (end - start < windowWidth) {
+      start = Math.max(0, end - windowWidth);
+    }
+
+    // Use ANSI-aware slicing
+    const before = sliceAnsiSafe(line, start, cursorPos);
+    const cursorChar = line[cursorPos] || ' ';
+    const after = sliceAnsiSafe(line, cursorPos, end);
+    
+    const cursorCell = chalk.inverse(cursorChar);
+    const ghostSuffix = ghost ? chalk.hex(this.colors.dimFg)(ghost) : '';
+    const lineContent = `${before}${cursorCell}${after}${ghostSuffix}`;
+
+    this.inputBox.setContent(`\n${prompt} ${lineContent}`);
   }
 
   private getGhostText(): string {
@@ -474,336 +752,715 @@ export class TerminalChatUI {
     return selected.slice(typed.length);
   }
 
-  private formatEditorLine(prompt: string, width: number, ghost: string): string {
-    const available = Math.max(1, width - this.visibleLength(prompt));
-    const ghostWidth = this.visibleLength(ghost);
-    const line = this.inputValue;
-    const cursor = Math.max(0, Math.min(this.cursor, line.length));
-    const windowWidth = Math.max(1, available - (ghost ? ghostWidth : 0));
-    const halfWindow = Math.max(4, Math.floor(windowWidth / 2));
-    let start = Math.max(0, cursor - halfWindow);
-    const end = Math.min(line.length, start + windowWidth);
-    if (end - start < windowWidth) {
-      start = Math.max(0, end - windowWidth);
+  private queueRender(): void {
+    // Add current render to queue
+    this.renderQueue.push(() => this.executeRender());
+    
+    // If already processing or have a timeout, don't create another
+    if (this.isRendering || this.renderQueueToken) {
+      return;
     }
-    const visible = line.slice(start, end);
-    const cursorOffset = Math.max(0, Math.min(cursor - start, visible.length));
-    const before = visible.slice(0, cursorOffset);
-    const cursorChar = visible.slice(cursorOffset, cursorOffset + 1);
-    const after = visible.slice(cursorOffset + 1);
-    const cursorCell = chalk.inverse(cursorChar || ' ');
-    const ghostSuffix = ghost ? chalk.dim(ghost) : '';
-    return `${prompt}${before}${cursorCell}${after}${ghostSuffix}`;
+    
+    // Start the debounced render cycle
+    this.processRenderQueue();
   }
 
-  private getEditorCursorColumn(prompt: string, width: number): number {
-    const available = Math.max(1, width - this.visibleLength(prompt));
-    const line = this.inputValue;
-    const cursor = Math.max(0, Math.min(this.cursor, line.length));
-    const windowWidth = Math.max(1, available - this.visibleLength(this.getGhostText()));
-    const halfWindow = Math.max(4, Math.floor(windowWidth / 2));
-    let start = Math.max(0, cursor - halfWindow);
-    const end = Math.min(line.length, start + windowWidth);
-    if (end - start < windowWidth) {
-      start = Math.max(0, end - windowWidth);
+  private processRenderQueue(): void {
+    if (this.renderQueue.length === 0) {
+      this.isRendering = false;
+      this.renderQueueToken = null;
+      return;
     }
-    const visible = line.slice(start, end);
-    const cursorOffset = Math.max(0, Math.min(cursor - start, visible.length));
-    return this.visibleLength(prompt) + cursorOffset;
+    
+    // Process all queued renders and clear the queue
+    const renders = [...this.renderQueue];
+    this.renderQueue = [];
+    this.isRendering = true;
+    
+    // Execute the last render (this ensures we don't do redundant work)
+    const lastRender = renders[renders.length - 1];
+    lastRender();
+    
+    // Reset state after execution
+    this.isRendering = false;
+  }
+
+  private executeRender(): void {
+    const bgHex = this.colors.transcriptBg;
+    const bFg = this.colors.borderFg;
+
+    this.transcriptBox.position.bottom = this.suggestionsBox.hidden
+      ? 5
+      : 5 + (this.suggestionsBox.height as number);
+
+    this.headerBox.style.bg = bgHex;
+    this.transcriptBox.style.bg = bgHex;
+    this.suggestionsBox.style.bg = bgHex;
+    this.inputBox.style.bg = this.colors.inputBg;
+
+    for (const box of [this.headerBox, this.transcriptBox, this.suggestionsBox, this.inputBox]) {
+      if (box.style.border) {
+        (box.style.border as { fg: string }).fg = bFg;
+      }
+    }
+
+    if (this.inputFocused && this.inputBox.style.border) {
+      (this.inputBox.style.border as { fg: string }).fg = this.colors.promptFg;
+    }
+
+    if (this.lastState) {
+      this.renderHeader(this.lastState);
+    }
+    this.renderTranscript();
+    this.renderSuggestions();
+    this.renderInput();
+    this.screen.render();
+    this.positionCursor();
+  }
+
+  private renderAll(): void {
+    // For immediate renders (like initial setup), use direct rendering
+    this.executeRender();
   }
 
   private positionCursor(): void {
     if (!this.inputFocused) return;
-    const prompt = this.historySearchActive ? chalk.yellow('? ') : chalk.cyan('> ');
-    const cursorColumn = this.historySearchActive
-      ? this.visibleLength(prompt) + this.historySearchQuery.length
-      : this.getEditorCursorColumn(prompt, Math.max(20, this.innerWidth(this.inputBox)));
-    const row = this.inputLayout.top + 1 + TerminalChatUI.PANEL_PADDING;
-    const col = this.inputLayout.left + 1 + TerminalChatUI.PANEL_PADDING + cursorColumn;
+    const screenH = Math.floor(Number(this.screen.height) || 24);
+    const screenW = Math.floor(Number(this.screen.width) || 80);
+    const inputContentRow = Math.max(1, screenH - 3);
+    const line = this.historySearchActive ? this.historySearchQuery : this.inputValue;
+    const cursorPos = this.historySearchActive ? line.length : Math.max(0, Math.min(this.cursor, line.length));
+    
+    // Use string-width for accurate display width
+    const visibleLen = getStringWidth(line.slice(0, cursorPos));
+    const col = Math.min(screenW - 1, 3 + visibleLen);
     this.screen.program.showCursor();
-    this.screen.program.cup(row, col);
+    this.screen.program.cup(inputContentRow, col);
   }
 
-  private innerWidth(box: blessed.Widgets.BoxElement): number {
-    const width = Math.floor((box.width as number) || (this.screen.width as number) || 80);
-    return Math.max(10, width - 2 - TerminalChatUI.PANEL_PADDING * 2);
+  private innerWidth(): number {
+    const w = Math.floor(Number(this.screen.width) || 80);
+    return Math.max(MIN_TERMINAL_WIDTH, w - 2);
   }
 
-  private innerHeight(box: blessed.Widgets.BoxElement): number {
-    const height = Math.floor((box.height as number) || 3);
-    return Math.max(3, height - 2 - TerminalChatUI.PANEL_PADDING * 2);
+  private innerHeight(): number {
+    const h = Math.floor(Number(this.screen.height) || 24);
+    const sugH = this.suggestionsBox.hidden ? 0 : (this.suggestionsBox.height as number);
+    const used = 3 + sugH + 5 + 2;
+    return Math.max(MIN_TERMINAL_HEIGHT, h - used);
   }
 
-  private wrapTranscript(width: number): string[] {
-    const lines: string[] = [];
+  private wrapLines(width: number): string[] {
+    // Check cache first
+    const cacheEntry = this.wrapCache.find(entry => entry.width === width);
+    if (cacheEntry) {
+      return cacheEntry.lines;
+    }
+    
+    const result: string[] = [];
     let inCodeBlock = false;
-    for (const entry of this.transcriptLines) {
-      const pieces = this.formatTranscriptEntry(entry, inCodeBlock);
-      inCodeBlock = pieces.inCodeBlock;
-      lines.push(...this.wrapLine(pieces.text, width));
-    }
-    return lines.length > 0 ? lines : [chalk.gray('No conversation yet.')];
-  }
 
-  private formatTranscriptEntry(line: string, inCodeBlock: boolean): { text: string; inCodeBlock: boolean } {
-    if (line.trim().startsWith('```')) {
-      return { text: chalk.gray(line), inCodeBlock: !inCodeBlock };
-    }
-
-    if (inCodeBlock) {
-      return { text: chalk.gray(line), inCodeBlock };
-    }
-
-    if (line.startsWith('Error:')) return { text: chalk.red(line), inCodeBlock };
-    if (line.startsWith('Warning:')) return { text: chalk.yellow(line), inCodeBlock };
-    if (line.startsWith('Info:')) return { text: chalk.cyan(line), inCodeBlock };
-    if (line.startsWith('Debug:')) return { text: chalk.gray(line), inCodeBlock };
-    if (/^\s*[-*]\s+/.test(line)) return { text: chalk.white(line), inCodeBlock };
-    if (/^\s*#{1,3}\s+/.test(line)) return { text: chalk.bold.white(line), inCodeBlock };
-    return { text: line, inCodeBlock };
-  }
-
-  private wrapLine(value: string, width: number): string[] {
-    const clean = stripAnsi(value).replace(/\s+/g, ' ').trim();
-    if (!clean) return [''];
-    const words = clean.split(' ');
-    const lines: string[] = [];
-    let current = '';
-    for (const word of words) {
-      const next = current ? `${current} ${word}` : word;
-      if (stripAnsi(next).length > width && current) {
-        lines.push(current);
-        current = word;
-      } else {
-        current = next;
+    for (const line of this.transcriptLines) {
+      if (line.trimStart().startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+        result.push(chalk.hex(this.colors.codeFg)(line));
+        continue;
       }
+
+      if (inCodeBlock) {
+        result.push(chalk.hex(this.colors.codeFg)(line));
+        continue;
+      }
+
+      const formatted = this.formatLine(line);
+      const wrapped = this.wordWrap(formatted, width);
+      result.push(...wrapped);
     }
-    if (current) lines.push(current);
+
+    if (result.length === 0) {
+      result.push(chalk.hex(this.colors.dimFg)('Start a conversation — type /help for commands'));
+    }
+
+    // Update cache
+    this.wrapCache.push({ width, lines: result });
+    
+    // Limit cache size
+    if (this.wrapCache.length > MAX_WRAP_CACHE_SIZE) {
+      this.wrapCache.shift();
+    }
+    
+    return result;
+  }
+
+  private formatLine(line: string, isCollapsed: boolean = false): string {
+    // Streaming chunk formatting
+    if (this.streamingState.isStreaming && line.includes(this.streamingState.streamId)) {
+      return chalk.hex(this.colors.accentFg)(line);
+    }
+
+    // Collapsible output formatting
+    if (line.startsWith('┌─') || line.startsWith('├─') || line.startsWith('└─')) {
+      return chalk.hex(this.colors.borderFg)(line);
+    }
+
+    // Collapsed content indicator
+    if (isCollapsed && line.includes('... [collapsed]')) {
+      return chalk.hex(this.colors.dimFg)(line);
+    }
+
+    // More flexible patterns for log levels
+    if (/^(?:Error|❌|✖|✘)[:\s]/i.test(line)) return chalk.hex(this.colors.errorFg)(line);
+    if (/^(?:Warning|Warn|⚠|⚡)[:\s]/i.test(line)) return chalk.hex(this.colors.warnFg)(line);
+    if (/^(?:Info|Info:|Information)[:\s]/i.test(line)) return chalk.hex(this.colors.infoFg)(line);
+    if (/^(?:Debug|Trace|Verbose)[:\s]/i.test(line)) return chalk.hex(this.colors.dimFg)(line);
+
+    // Headings (1-6 levels)
+    if (/^\s*#{1,6}\s+/.test(line)) return chalk.bold.hex(this.colors.accentFg)(line);
+    
+    // List items (bullet, number, or other markers)
+    if (/^\s*[-*+•]\s+/.test(line)) return chalk.hex(this.colors.inputFg)(line);
+    if (/^\s*\d+[.)]\s+/.test(line)) return chalk.hex(this.colors.inputFg)(line);
+
+    // Code blocks and inline code
+    if (line.startsWith('```') || line.endsWith('```')) {
+      return chalk.hex(this.colors.codeFg)(line);
+    }
+
+    // Role prefixes
+    if (line.startsWith('[User]') || line.startsWith('User:')) return chalk.hex(this.colors.userTag)(line);
+    if (line.startsWith('[Assistant]') || line.startsWith('Assistant:')) return chalk.hex(this.colors.assistantTag)(line);
+    if (line.startsWith('[System]') || line.startsWith('System:')) return chalk.hex(this.colors.systemTag)(line);
+
+    // Smart formatting: detect and highlight important patterns
+    // Tool calls and results
+    if (/^tool_/i.test(line)) return chalk.hex(this.colors.accentFg)(line);
+    if (/^result:/i.test(line)) return chalk.hex(this.colors.accentFg)(line);
+
+    // File paths and URLs
+    if (/^\//.test(line) || /^https?:\/\//.test(line)) {
+      return chalk.hex(this.colors.infoFg)(line);
+    }
+
+    return line;
+  }
+
+  private wordWrap(text: string, width: number): string[] {
+    // Use getStringWidth for accurate display width measurement
+    if (getStringWidth(text) <= width) return [text];
+
+    const lines: string[] = [];
+    let remaining = text;
+    
+    while (getStringWidth(remaining) > width) {
+      let breakPoint = 0;
+      let currentWidth = 0;
+      let lastSpacePos = -1;
+      
+      for (let i = 0; i < remaining.length; i++) {
+        const char = remaining[i];
+        
+        // Handle ANSI escape sequences
+        if (char === '\x1b') {
+          // Find the end of the ANSI sequence (ends with 'm')
+          const endSeq = remaining.indexOf('m', i);
+          if (endSeq !== -1) {
+            i = endSeq;
+          }
+          continue;
+        }
+        
+        const charWidth = getStringWidth(char);
+        
+        if (currentWidth + charWidth > width) {
+          // We've exceeded the width
+          if (lastSpacePos > 0 && currentWidth > width * 0.3) {
+            // Use the last space if it's not too close to the start
+            breakPoint = lastSpacePos;
+          } else {
+            // No good space found, break here
+            breakPoint = i;
+          }
+          break;
+        }
+        
+        if (char === ' ') {
+          lastSpacePos = i;
+        }
+        
+        currentWidth += charWidth;
+      }
+      
+      if (breakPoint === 0 && getStringWidth(remaining) > width) {
+        // No break point found, force break at width
+        let charCount = 0;
+        let accumulatedWidth = 0;
+        for (let i = 0; i < remaining.length && accumulatedWidth < width; i++) {
+          const char = remaining[i];
+          if (char === '\x1b') {
+            const endSeq = remaining.indexOf('m', i);
+            if (endSeq !== -1) i = endSeq;
+            continue;
+          }
+          accumulatedWidth += getStringWidth(char);
+          if (accumulatedWidth <= width) {
+            charCount = i + 1;
+          }
+        }
+        breakPoint = charCount;
+      }
+      
+      if (breakPoint <= 0) {
+        breakPoint = Math.min(remaining.length, Math.floor(width));
+      }
+      
+      // Use ANSI-aware slicing
+      const before = sliceAnsiSafe(remaining, 0, breakPoint).replace(/\s*$/, '');
+      const after = sliceAnsiSafe(remaining, breakPoint).replace(/^\s+/, '');
+      lines.push(before);
+      remaining = after || '';
+    }
+    
+    if (remaining) lines.push(remaining);
     return lines;
   }
 
-  private scrollTranscript(delta: number): void {
-    const visible = Math.max(5, this.innerHeight(this.transcriptBox));
-    const wrapped = this.wrapTranscript(this.innerWidth(this.transcriptBox));
-    const maxOffset = Math.max(0, wrapped.length - visible);
-    this.transcriptScrollOffset = Math.max(0, Math.min(maxOffset, this.transcriptScrollOffset + delta));
-    this.transcriptHasUnread = this.transcriptScrollOffset > 0;
-    this.renderAll();
-  }
+  private setupInputHandling(): void {
+    const inputKeys: Record<string, (ch: string, key: any) => boolean> = {
+      'C-k': () => { void this.actions.onCopy?.(); return true; },
+      'C-g': () => { void this.actions.onPaste?.(); return true; },
+      'C-f': () => { void this.actions.onBrowser?.(); return true; },
+      'C-o': () => { void this.sessionControls.onToggleMode?.(); return true; },
+      'f2': () => { void this.sessionControls.onSave?.(); return true; },
+      'f3': () => { void this.sessionControls.onStatus?.(); return true; },
+      'C-t': () => { this.toggleCollapsedOutputs(); return true; }, // Toggle collapsed outputs
+    };
 
-  private scrollTranscriptToStart(): void {
-    const visible = Math.max(5, this.innerHeight(this.transcriptBox));
-    const total = this.wrapTranscript(this.innerWidth(this.transcriptBox)).length;
-    this.transcriptScrollOffset = Math.max(0, total - visible);
-    this.transcriptHasUnread = this.transcriptScrollOffset > 0;
-    this.renderAll();
-  }
-
-  private scrollTranscriptToEnd(): void {
-    this.transcriptScrollOffset = 0;
-    this.transcriptHasUnread = false;
-    this.renderAll();
-  }
-
-  private visibleLength(value: string): number {
-    return stripAnsi(value).length;
-  }
-
-  private truncate(value: string, width: number): string {
-    const clean = value.replace(/\s+/g, ' ').trim();
-    if (clean.length <= width) return clean;
-    return `${clean.slice(0, Math.max(0, width - 1))}…`;
-  }
-
-  private handleEditorKey(ch: string | undefined, key: blessed.Widgets.Events.IKeyEventArg | undefined): boolean {
-    if (!key) return false;
-
-    if (key.ctrl && key.name === 'c') {
-      this.interruptCount += 1;
-      if (this.interruptCount >= 2) {
-        this.close();
-        return true;
-      }
-      this.armInterruptReset();
-      this.appendLine('Info: Press Ctrl+C again to exit.');
-      return true;
+    for (const [key, handler] of Object.entries(inputKeys)) {
+      this.screen.key([key], (ch, k) => { handler(ch, k); });
+      this.screenKeyBindings.push({ key, handler: () => handler('', {}) });
     }
 
-    if (key.ctrl && key.name === 'r') {
-      this.clearInterruptState();
+    this.screen.key(['resize'], () => {
+      this.queueRender();
+    });
+    this.screenKeyBindings.push({ key: 'resize', handler: () => this.queueRender() });
+
+    this.screen.key(['pageup'], () => {
+      const height = this.innerHeight();
+      this.scrollBy(-Math.max(3, Math.floor(height * 0.5)));
+    });
+    this.screenKeyBindings.push({ key: 'pageup', handler: () => this.scrollBy(-Math.max(3, Math.floor(this.innerHeight() * 0.5))) });
+
+    this.screen.key(['pagedown'], () => {
+      const height = this.innerHeight();
+      this.scrollBy(Math.max(3, Math.floor(height * 0.5)));
+    });
+    this.screenKeyBindings.push({ key: 'pagedown', handler: () => this.scrollBy(Math.max(3, Math.floor(this.innerHeight() * 0.5))) });
+
+    this.screen.key(['home'], () => this.scrollToTop());
+    this.screenKeyBindings.push({ key: 'home', handler: () => this.scrollToTop() });
+
+    this.screen.key(['end'], () => this.scrollToBottom());
+    this.screenKeyBindings.push({ key: 'end', handler: () => this.scrollToBottom() });
+
+    this.screen.key(['C-r'], () => {
       this.toggleHistorySearch();
       return true;
-    }
+    });
+    this.screenKeyBindings.push({ key: 'C-r', handler: () => this.toggleHistorySearch() });
 
-    if (key.name === 'escape') {
-      this.clearInterruptState();
+    this.screen.key(['escape'], (_ch: any, _key: any) => {
+      if (this.historySearchActive) {
+        this.clearHistorySearch();
+        this.renderAll();
+        return;
+      }
+
       if (this.taskControls.isRunning?.()) {
-        this.escapeCancelCount += 1;
+        this.escapeCancelCount++;
         if (this.escapeCancelCount >= 2) {
           this.taskControls.requestCancel?.();
           this.clearEscapeCancelState();
-          this.appendLine('Warning: Cancelling running task...');
+          this.appendLine(chalk.hex(this.colors.warnFg)('⚠ Cancelling running task...'));
         } else {
           this.armEscapeCancelReset();
-          this.appendLine('Info: Press Escape again to cancel the running task.');
+          this.appendLine(chalk.hex(this.colors.infoFg)('· Press Escape again to cancel the running task.'));
         }
-        return true;
+        return;
       }
-      if (this.historySearchActive) {
-        this.clearHistorySearch();
-      } else {
+
+      if (this.inputValue || this.suggestions.length > 0) {
         this.clearInput();
       }
-      return true;
-    }
+    });
+    this.screenKeyBindings.push({ key: 'escape', handler: () => {} }); // Complex handler, can't easily replicate
 
-    if (this.historySearchActive) {
-      return this.handleHistorySearchKey(ch, key);
-    }
-
-    if (key.name === 'tab') {
+    this.screen.key(['tab'], () => {
+      if (this.historySearchActive) {
+        this.acceptHistorySearch();
+        return;
+      }
       this.refreshCompletionState();
       if (this.suggestions.length > 0) {
         this.applySuggestion(this.getSelectedSuggestion());
       }
-      return true;
-    }
+    });
+    this.screenKeyBindings.push({ key: 'tab', handler: () => {} });
 
-    if (key.name === 'up' && this.suggestions.length > 0) {
-      this.suggestionIndex = (this.suggestionIndex - 1 + this.suggestions.length) % this.suggestions.length;
-      this.renderAll();
-      return true;
-    }
-
-    if (key.name === 'down' && this.suggestions.length > 0) {
-      this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
-      this.renderAll();
-      return true;
-    }
-
-    if (key.name === 'up' || key.name === 'down') {
-      if (this.history.length === 0) return true;
-      if (this.historyIndex === -1) {
-        this.historyDraft = this.inputValue;
-        this.historyIndex = this.history.length - 1;
-      } else if (key.name === 'up') {
-        this.historyIndex = Math.max(0, this.historyIndex - 1);
-      } else if (this.historyIndex < this.history.length - 1) {
-        this.historyIndex += 1;
-      } else {
-        this.historyIndex = -1;
-        this.inputValue = this.historyDraft;
-        this.cursor = this.inputValue.length;
-        this.refreshCompletionState();
-        return true;
+    this.screen.key(['up'], () => {
+      if (this.suggestions.length > 0 && !this.historySearchActive) {
+        if (this.suggestionIndex > 0) {
+          this.suggestionIndex--;
+          this.queueRender();
+        }
+        return;
       }
+      this.navigateHistory(-1);
+    });
+    this.screenKeyBindings.push({ key: 'up', handler: () => {} });
 
-      if (this.historyIndex >= 0) {
-        this.inputValue = this.history[this.historyIndex] ?? '';
-        this.cursor = this.inputValue.length;
-        this.refreshCompletionState();
+    this.screen.key(['down'], () => {
+      if (this.suggestions.length > 0 && !this.historySearchActive) {
+        if (this.suggestionIndex < this.suggestions.length - 1) {
+          this.suggestionIndex++;
+          this.queueRender();
+        }
+        return;
       }
-      return true;
-    }
+      this.navigateHistory(1);
+    });
+    this.screenKeyBindings.push({ key: 'down', handler: () => {} });
 
-    if (key.name === 'return' || key.name === 'enter') {
-      const next = this.inputValue.trimEnd();
-      this.clearInput();
-      if (this.inputHandler) {
-        void this.inputHandler(next);
-      }
-      return true;
-    }
-
-    if (key.ctrl && key.name === 'a') {
-      this.historyIndex = -1;
-      this.cursor = 0;
-      this.renderAll();
-      return true;
-    }
-
-    if (key.ctrl && key.name === 'e') {
-      this.historyIndex = -1;
-      this.cursor = this.inputValue.length;
-      this.renderAll();
-      return true;
-    }
-
-    if (key.ctrl && key.name === 'u') {
-      this.historyIndex = -1;
-      this.inputValue = this.inputValue.slice(this.cursor);
-      this.cursor = 0;
-      this.refreshCompletionState();
-      return true;
-    }
-
-    if (key.name === 'left') {
+    this.screen.key(['left'], () => {
       this.historyIndex = -1;
       this.cursor = Math.max(0, this.cursor - 1);
-      this.renderAll();
-      return true;
-    }
+      this.queueRender();
+    });
+    this.screenKeyBindings.push({ key: 'left', handler: () => {} });
 
-    if (key.name === 'right') {
+    this.screen.key(['right'], () => {
       this.historyIndex = -1;
       this.cursor = Math.min(this.inputValue.length, this.cursor + 1);
-      this.renderAll();
-      return true;
-    }
+      this.queueRender();
+    });
+    this.screenKeyBindings.push({ key: 'right', handler: () => {} });
 
-    if (key.name === 'home') {
+    this.screen.key(['backspace'], () => {
       this.historyIndex = -1;
-      this.cursor = 0;
-      this.renderAll();
-      return true;
-    }
-
-    if (key.name === 'end') {
-      this.historyIndex = -1;
-      this.cursor = this.inputValue.length;
-      this.renderAll();
-      return true;
-    }
-
-    if (key.name === 'backspace') {
-      this.historyIndex = -1;
+      if (this.historySearchActive) {
+        this.historySearchQuery = this.historySearchQuery.slice(0, -1);
+        this.updateHistorySearchResults();
+        return;
+      }
       if (this.cursor > 0) {
         this.inputValue = `${this.inputValue.slice(0, this.cursor - 1)}${this.inputValue.slice(this.cursor)}`;
         this.cursor -= 1;
         this.refreshCompletionState();
       }
-      return true;
-    }
+    });
+    this.screenKeyBindings.push({ key: 'backspace', handler: () => {} });
 
-    if (key.name === 'delete') {
+    this.screen.key(['delete'], () => {
       this.historyIndex = -1;
       if (this.cursor < this.inputValue.length) {
         this.inputValue = `${this.inputValue.slice(0, this.cursor)}${this.inputValue.slice(this.cursor + 1)}`;
         this.refreshCompletionState();
       }
-      return true;
-    }
+    });
+    this.screenKeyBindings.push({ key: 'delete', handler: () => {} });
 
-    if (typeof ch === 'string' && ch.length === 1 && !key.ctrl && !key.meta) {
-      this.clearInterruptState();
-      this.clearEscapeCancelState();
+    this.screen.key(['C-a', 'home'], () => {
+      this.historyIndex = -1;
+      this.cursor = 0;
+      this.queueRender();
+    });
+    this.screenKeyBindings.push({ key: 'C-a', handler: () => {} });
+
+    this.screen.key(['C-e', 'end'], () => {
+      this.historyIndex = -1;
+      this.cursor = this.inputValue.length;
+      this.queueRender();
+    });
+    this.screenKeyBindings.push({ key: 'C-e', handler: () => {} });
+
+    this.screen.key(['C-u'], () => {
+      this.historyIndex = -1;
+      this.inputValue = this.inputValue.slice(this.cursor);
+      this.cursor = 0;
+      this.refreshCompletionState();
+    });
+    this.screenKeyBindings.push({ key: 'C-u', handler: () => {} });
+
+    this.screen.key(['C-w'], () => {
+      this.historyIndex = -1;
+      const before = this.inputValue.slice(0, this.cursor);
+      const after = this.inputValue.slice(this.cursor);
+      const spaceIdx = before.lastIndexOf(' ');
+      this.inputValue = `${before.slice(0, Math.max(0, spaceIdx))}${after}`;
+      this.cursor = Math.max(0, spaceIdx);
+      this.refreshCompletionState();
+    });
+    this.screenKeyBindings.push({ key: 'C-w', handler: () => {} });
+
+    this.screen.key(['C-d'], () => {
+      if (this.inputValue.length === 0) {
+        this.close();
+        process.exit(0);
+      }
+    });
+    this.screenKeyBindings.push({ key: 'C-d', handler: () => {} });
+
+    this.screen.key(['enter'], () => {
+      if (this.historySearchActive) {
+        this.acceptHistorySearch();
+        return;
+      }
+      const next = this.inputValue.trimEnd();
+      this.clearInput();
+      if (this.inputHandler && next) {
+        // Handle promise rejections
+        this.inputHandler(next).catch((error) => {
+          this.appendLine(chalk.hex(this.colors.errorFg)(`Error: ${error instanceof Error ? error.message : String(error)}`));
+        });
+      }
+    });
+    this.screenKeyBindings.push({ key: 'enter', handler: () => {} });
+
+    this.screen.key(['C-c'], (_ch: any, _key: any) => {
+      this.interruptCount++;
+      if (this.interruptCount >= 2) {
+        this.close();
+        process.exit(0);
+      }
+      this.armInterruptReset();
+      this.appendLine(chalk.hex(this.colors.infoFg)('· Press Ctrl+C again to exit.'));
+    });
+    this.screenKeyBindings.push({ key: 'C-c', handler: () => {} });
+
+    // Catch-all for printable character input
+    this.screen.on('keypress', (ch, key) => {
+      if (!this.inputFocused) return;
+      if (!key || !ch) return;
+      if (key.ctrl || key.meta) return;
+
+      // Skip keys that have dedicated screen.key() handlers
+      switch (key.name) {
+        case 'escape': case 'tab': case 'enter': case 'return':
+        case 'up': case 'down': case 'left': case 'right':
+        case 'backspace': case 'delete': case 'home': case 'end':
+        case 'pageup': case 'pagedown':
+        case 'f1': case 'f2': case 'f3': case 'f4': case 'f5': case 'f6':
+        case 'f7': case 'f8': case 'f9': case 'f10': case 'f11': case 'f12':
+          return;
+      }
+
+      if (this.historySearchActive) {
+        this.historySearchQuery += ch;
+        this.updateHistorySearchResults();
+        return;
+      }
+
       this.historyIndex = -1;
       this.inputValue = `${this.inputValue.slice(0, this.cursor)}${ch}${this.inputValue.slice(this.cursor)}`;
-      this.cursor += 1;
+      this.cursor += ch.length;
       this.refreshCompletionState();
-      return true;
+    });
+  }
+
+  private setupTranscriptScroll(): void {
+    this.scrollHandler = () => {
+      const scrollPerc = this.transcriptBox.getScrollPerc();
+      this.isAtBottom = scrollPerc >= 99;
+      if (this.isAtBottom) {
+        this.transcriptHasUnread = false;
+        this.transcriptScrollOffset = 0;
+      }
+      this.queueRender();
+    };
+    this.transcriptBox.on('scroll', this.scrollHandler);
+  }
+
+  private scrollBy(delta: number): void {
+    const total = this.wrapLines(this.innerWidth()).length;
+    const height = this.innerHeight();
+    const maxOffset = Math.max(0, total - height);
+    this.transcriptScrollOffset = Math.max(0, Math.min(maxOffset, this.transcriptScrollOffset + delta));
+    this.isAtBottom = this.transcriptScrollOffset === 0;
+    this.transcriptHasUnread = this.transcriptScrollOffset > 0 && !this.isAtBottom;
+    this.queueRender();
+  }
+
+  private scrollToTop(): void {
+    const total = this.wrapLines(this.innerWidth()).length;
+    const height = this.innerHeight();
+    this.transcriptScrollOffset = Math.max(0, total - height);
+    // Fix: isAtBottom should be true if we can see all content (maxOffset === 0)
+    this.isAtBottom = this.transcriptScrollOffset === 0;
+    this.transcriptHasUnread = false;
+    this.queueRender();
+  }
+
+  private scrollToBottom(): void {
+    this.transcriptScrollOffset = 0;
+    this.isAtBottom = true;
+    this.transcriptHasUnread = false;
+    this.queueRender();
+  }
+
+  private refreshCompletionState(): void {
+    this.completionState = this.suggestionResolver
+      ? this.suggestionResolver(this.inputValue, this.cursor)
+      : null;
+    this.suggestions = this.completionState?.suggestions ?? [];
+    this.suggestionIndex = 0;
+    this.historySearchActive = false;
+    this.queueRender();
+  }
+
+  private queueSuggestionRefresh(): void {
+    if (this.suggestionRefreshToken) {
+      clearImmediate(this.suggestionRefreshToken);
+    }
+    this.suggestionRefreshToken = setImmediate(() => {
+      this.suggestionRefreshToken = null;
+      this.refreshCompletionState();
+    });
+  }
+
+  private applySuggestion(value: string): void {
+    const state = this.completionState;
+    if (!state) return;
+    // Only apply if different from current range
+    const currentRange = this.inputValue.slice(state.range.start, state.range.end);
+    if (currentRange === value) return;
+    
+    const before = this.inputValue.slice(0, state.range.start);
+    const after = this.inputValue.slice(state.range.end);
+    this.inputValue = `${before}${value}${after}`;
+    this.cursor = before.length + value.length;
+    this.refreshCompletionState();
+  }
+
+  private getSelectedSuggestion(): string {
+    return this.suggestions[this.suggestionIndex] ?? this.suggestions[0] ?? '';
+  }
+
+  private navigateHistory(direction: -1 | 1): void {
+    if (this.history.length === 0) return;
+
+    if (this.historyIndex === -1) {
+      this.historyDraft = this.inputValue;
+      this.historyIndex = direction === -1 ? this.history.length - 1 : 0;
+    } else {
+      const newIndex = this.historyIndex + direction;
+      if (newIndex < 0 || newIndex >= this.history.length) {
+        this.historyIndex = -1;
+        this.inputValue = this.historyDraft;
+        this.cursor = this.inputValue.length;
+        this.refreshCompletionState();
+        return;
+      }
+      this.historyIndex = newIndex;
     }
 
-    return false;
+    if (this.historyIndex >= 0 && this.historyIndex < this.history.length) {
+      this.inputValue = this.history[this.historyIndex];
+      this.cursor = this.inputValue.length;
+      this.refreshCompletionState();
+    }
+  }
+
+  private toggleHistorySearch(): void {
+    this.historySearchActive = !this.historySearchActive;
+    if (this.historySearchActive) {
+      this.historySearchQuery = '';
+      this.historySearchResults = this.history.map((_, i) => i).reverse();
+      this.historySearchIndex = 0;
+    } else {
+      this.clearHistorySearch();
+    }
+    this.queueRender();
+  }
+
+  private clearHistorySearch(): void {
+    this.historySearchActive = false;
+    this.historySearchQuery = '';
+    this.historySearchResults = [];
+    this.historySearchIndex = 0;
+  }
+
+  private updateHistorySearchResults(): void {
+    const query = this.historySearchQuery.toLowerCase();
+    this.historySearchResults = this.history
+      .map((value, i) => ({ value, i }))
+      .filter((item) => item.value.toLowerCase().includes(query))
+      .map((item) => item.i)
+      .reverse();
+    this.historySearchIndex = 0;
+    this.queueRender();
+  }
+
+  private getHistorySearchSelection(): string {
+    const idx = this.historySearchResults[this.historySearchIndex];
+    return typeof idx === 'number' ? (this.history[idx] ?? '') : '';
+  }
+
+  private acceptHistorySearch(): void {
+    const value = this.getHistorySearchSelection();
+    if (value) {
+      this.inputValue = value;
+      this.cursor = value.length;
+    }
+    this.clearHistorySearch();
+    this.refreshCompletionState();
+  }
+
+  private handleOutput(entry: OutputEntry): void {
+    if (entry.level === 'debug') return;
+    
+    // Handle streaming chunks
+    if (entry.kind === 'raw' && this.streamingState.isStreaming) {
+      this.streamingState.currentChunk += entry.message;
+      this.appendRaw(entry.message);
+      return;
+    }
+    
+    // Handle raw messages
+    if (entry.kind === 'raw') {
+      this.appendRaw(entry.message);
+      return;
+    }
+    
+    // Handle streaming start/end indicators
+    const icon = entry.level === 'error'
+      ? chalk.hex(this.colors.errorFg)('✖')
+      : entry.level === 'warn'
+        ? chalk.hex(this.colors.warnFg)('⚠')
+        : chalk.hex(this.colors.dimFg)('·');
+    
+    const message = entry.message;
+    
+    // Detect streaming indicators in messages
+    if (message.includes('Streaming...') || message.includes('streaming')) {
+      this.streamingState = {
+        isStreaming: true,
+        currentChunk: '',
+        streamId: `stream_${Date.now()}`,
+      };
+    } else if (message.includes('Stream complete') || message.includes('stream ended')) {
+      this.streamingState = {
+        isStreaming: false,
+        currentChunk: '',
+        streamId: '',
+      };
+    }
+    
+    this.appendLine(`${icon} ${message}`);
   }
 
   private armInterruptReset(): void {
-    if (this.interruptResetToken) {
-      clearTimeout(this.interruptResetToken);
-    }
-    this.interruptResetToken = setTimeout(() => {
-      this.clearInterruptState();
-    }, 1500);
+    if (this.interruptResetToken) clearTimeout(this.interruptResetToken);
+    this.interruptResetToken = setTimeout(() => this.clearInterruptState(), 1500);
   }
 
   private clearInterruptState(): void {
@@ -815,12 +1472,8 @@ export class TerminalChatUI {
   }
 
   private armEscapeCancelReset(): void {
-    if (this.escapeCancelResetToken) {
-      clearTimeout(this.escapeCancelResetToken);
-    }
-    this.escapeCancelResetToken = setTimeout(() => {
-      this.clearEscapeCancelState();
-    }, 1500);
+    if (this.escapeCancelResetToken) clearTimeout(this.escapeCancelResetToken);
+    this.escapeCancelResetToken = setTimeout(() => this.clearEscapeCancelState(), 1500);
   }
 
   private clearEscapeCancelState(): void {
@@ -831,135 +1484,60 @@ export class TerminalChatUI {
     }
   }
 
-  private handleOutput(entry: OutputEntry): void {
-    if (entry.kind === 'raw') {
-      this.appendRaw(entry.message);
-      return;
-    }
-    const prefix = entry.level === 'error'
-      ? chalk.red('Error')
-      : entry.level === 'warn'
-        ? chalk.yellow('Warning')
-        : entry.level === 'debug'
-          ? chalk.gray('Debug')
-          : chalk.green('Info');
-    this.appendLine(`${prefix}: ${entry.message}`);
+  private visibleLength(value: string): number {
+    return getStringWidth(value);
   }
 
-  private toggleHistorySearch(): void {
-    this.historySearchActive = !this.historySearchActive;
-    if (this.historySearchActive) {
-      this.historySearchQuery = '';
-      this.historySearchResults = this.history.map((_, index) => index).reverse();
-      this.historySearchIndex = 0;
-    } else {
-      this.clearHistorySearch();
-    }
-    this.renderAll();
+  private truncate(value: string, width: number): string {
+    const clean = value.replace(/\s+/g, ' ').trim();
+    const displayWidth = getStringWidth(clean);
+    if (displayWidth <= width) return clean;
+    // Use ANSI-aware slicing for proper truncation
+    return sliceAnsiSafe(clean, 0, Math.max(0, width - 1)) + '…';
   }
 
-  private clearHistorySearch(): void {
-    this.historySearchActive = false;
-    this.historySearchQuery = '';
-    this.historySearchResults = [];
-    this.historySearchIndex = 0;
-  }
-
-  private handleHistorySearchKey(ch: string | undefined, key: blessed.Widgets.Events.IKeyEventArg): boolean {
-    if (key.name === 'escape') {
-      this.clearHistorySearch();
-      this.renderAll();
-      return true;
+  // Smart Output Formatting: Methods for collapsible outputs
+  private createCollapsibleOutput(content: string, maxLines: number = 10): string[] {
+    const lines = content.split('\n');
+    if (lines.length <= maxLines) {
+      return lines;
     }
-
-    if (key.name === 'return' || key.name === 'enter') {
-      const value = this.getHistorySearchSelection();
-      if (value) {
-        this.inputValue = value;
-        this.cursor = value.length;
-      }
-      this.clearHistorySearch();
-      this.refreshCompletionState();
-      return true;
-    }
-
-    if (key.name === 'up') {
-      this.historySearchIndex = Math.max(0, this.historySearchIndex - 1);
-      this.renderAll();
-      return true;
-    }
-
-    if (key.name === 'down') {
-      this.historySearchIndex = Math.min(Math.max(0, this.historySearchResults.length - 1), this.historySearchIndex + 1);
-      this.renderAll();
-      return true;
-    }
-
-    if (key.name === 'backspace') {
-      this.historySearchQuery = this.historySearchQuery.slice(0, -1);
-      this.updateHistorySearchResults();
-      return true;
-    }
-
-    if (typeof ch === 'string' && ch.length === 1 && !key.ctrl && !key.meta) {
-      this.historySearchQuery += ch;
-      this.updateHistorySearchResults();
-      return true;
-    }
-
-    return true;
-  }
-
-  private updateHistorySearchResults(): void {
-    const query = this.historySearchQuery.toLowerCase();
-    this.historySearchResults = this.history
-      .map((value, index) => ({ value, index }))
-      .filter((item) => item.value.toLowerCase().includes(query))
-      .map((item) => item.index)
-      .reverse();
-    this.historySearchIndex = 0;
-    this.renderAll();
-  }
-
-  private getHistorySearchSelection(): string {
-    const index = this.historySearchResults[this.historySearchIndex];
-    return typeof index === 'number' ? (this.history[index] ?? '') : '';
-  }
-
-  private formatSearchLine(width: number): string {
-    const prompt = chalk.yellow('? ');
-    const query = this.historySearchQuery || '';
-    const selection = this.getHistorySearchSelection();
-    const available = Math.max(1, width - this.visibleLength(prompt));
-    const visibleQuery = this.truncate(query, Math.max(1, available - 12));
-    const cursorCell = chalk.inverse(' ');
-    const suffix = selection ? chalk.dim(` ${this.truncate(selection, 32)}`) : '';
-    return `${prompt}${visibleQuery}${cursorCell}${suffix}`;
-  }
-
-  private renderHistorySearchPanel(): string {
-    const selection = this.getHistorySearchSelection();
-    const results = this.historySearchResults.slice(0, 5).map((index, displayIndex) => {
-      const value = this.history[index] ?? '';
-      const marker = displayIndex === this.historySearchIndex ? chalk.cyan('>') : chalk.gray(' ');
-      return `${marker} ${this.truncate(value, 96)}`;
-    });
+    
+    const collapsedId = `collapsed_${Date.now()}`;
+    this.collapsedOutputs.add(collapsedId);
+    
+    const visibleLines = lines.slice(0, maxLines);
+    const hiddenCount = lines.length - maxLines;
+    
     return [
-      chalk.yellow(`History search: ${this.historySearchQuery || '(type to search)'}`),
-      ...(results.length > 0 ? results : [chalk.gray('No history matches.')]),
-      chalk.gray(selection ? `Enter accept · Esc cancel · ${this.historySearchResults.length} match(es)` : 'Enter accept · Esc cancel'),
-    ].join('\n');
+      ...visibleLines,
+      chalk.hex(this.colors.dimFg)(`... [${hiddenCount} more lines collapsed] ${chalk.hex(this.colors.accentFg)(`[+]`)}`),
+    ];
   }
 
-  private getSelectedCompletionItem(index: number): CompletionItem | undefined {
-    const context = this.completionState;
-    if (!context?.items) return undefined;
-    const selectedValue = this.suggestions[index];
-    if (!selectedValue) return undefined;
-    return context.items.find((item) => this.decorateCompletionValue(item) === selectedValue);
+  private toggleCollapsedOutput(collapsedId: string): void {
+    if (this.collapsedOutputs.has(collapsedId)) {
+      this.collapsedOutputs.delete(collapsedId);
+    } else {
+      this.collapsedOutputs.add(collapsedId);
+    }
+    this.queueRender();
   }
 
-  private decorateCompletionValue(entry: CompletionItem): string {
-    return this.completionState?.mode === 'mention' ? `@${entry.value}` : entry.value;
+  private toggleCollapsedOutputs(): void {
+    // Toggle all collapsed outputs
+    if (this.collapsedOutputs.size > 0) {
+      this.collapsedOutputs.clear();
+    } else {
+      // This would require tracking all collapsible items, for now just show a message
+      this.appendLine(chalk.hex(this.colors.infoFg)('No collapsed outputs to expand'));
+    }
+    this.queueRender();
+  }
+
+  // Performance Optimization: Invalidate wrap cache when content changes significantly
+  private invalidateWrapCache(): void {
+    this.wrapCache = [];
+    this.lastWrapWidth = 0;
   }
 }

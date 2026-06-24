@@ -14,6 +14,10 @@ export function setOutputSink(nextSink: OutputSink | null): void {
   sink = nextSink;
 }
 
+export function hasOutputSink(): boolean {
+  return sink !== null;
+}
+
 export function writeOutput(message: string): void {
   if (sink) {
     sink({ kind: 'raw', message });

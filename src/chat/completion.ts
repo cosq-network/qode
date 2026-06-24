@@ -1,6 +1,8 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { getSubagentManager } from '../agents/subagent.js';
+import { DEFAULT_MODELS } from '../providers/models.js';
+import { BUILTIN_MODELS } from '../models/downloader.js';
 
 export type CompletionMode = 'slash' | 'mention';
 
@@ -82,8 +84,9 @@ export function getSlashSuggestions(input: string): string[] {
   const prefix = rest.join(' ');
   const groups: Record<string, CompletionItem[]> = {
     '/auth': [
-      { value: '/auth status', description: 'Show authentication status' },
-      { value: '/auth logout', description: 'Clear stored credentials' },
+      { value: '/auth status', description: 'Show authentication status for all providers' },
+      { value: '/auth connect', description: 'Connect an auth provider (API key or device code)' },
+      { value: '/auth logout', description: 'Remove stored credentials for a provider' },
     ],
     '/mode': [
       { value: '/mode build', description: 'Allow tool use and edits' },
@@ -110,9 +113,24 @@ export function getSlashSuggestions(input: string): string[] {
     '/search': [
       { value: '/search --rebuild', description: 'Rebuild the search index' },
     ],
+    '/model': [
+      ...Object.entries(DEFAULT_MODELS).flatMap(([provider, models]) =>
+        models.map((model) => ({
+          value: `/model ${model}`,
+          description: provider,
+        })),
+      ),
+      ...BUILTIN_MODELS.map((model) => ({
+        value: `/model ${model.name}`,
+        description: 'Local (GGUF)',
+      })),
+    ],
   };
 
   if (!input.endsWith(' ') && rest.length === 0) {
+    if (groups[command]) {
+      return groups[command].map((item) => item.value);
+    }
     return getSlashCommandList().filter((c) => c.startsWith(command));
   }
 
@@ -152,8 +170,10 @@ export function getSlashCommandItems(): CompletionItem[] {
     { value: '/mode', description: 'Switch build or plan mode', group: 'session' },
     { value: '/plan', description: 'Manage the active plan', group: 'session' },
     { value: '/task', description: 'Delegate work to a subagent', group: 'agent' },
-    { value: '/connect', description: 'Connect an auth provider', group: 'auth' },
-    { value: '/auth', description: 'Manage stored credentials', group: 'auth' },
+    { value: '/connect', description: 'Connect an auth provider (alias for /auth connect)', group: 'auth' },
+    { value: '/auth', description: 'Show auth status, connect, or logout providers', group: 'auth' },
+    { value: '/models', description: 'List available models', group: 'core' },
+    { value: '/download-status', description: 'Check download progress', group: 'workspace' },
     { value: '/exit', description: 'Exit the application', group: 'session' },
     { value: '/cancel', description: 'Cancel multiline input', group: 'session' },
   ];
