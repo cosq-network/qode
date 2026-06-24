@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import { intro, outro } from '@clack/prompts';
 import stripAnsiLib from 'strip-ansi';
 import { loadConfig, saveConfig } from '../config.js';
+import { findModel } from '../providers/models.js';
 import { logger } from '../utils/logger.js';
 import { loadSession, saveSession, listSessions } from '../utils/storage.js';
 import { Session } from './session.js';
@@ -287,12 +288,30 @@ Commands:
 
     // Model switching
     if (trimmed.startsWith('/model')) {
-      const parts = trimmed.split(' ');
-      if (parts.length >= 2) {
-        const newModel = parts[1];
+      const trimmedInput = trimmed.slice('/model'.length).trim();
+      const selected = trimmedInput ? trimmedInput.split(/\s+/)[0] : '';
+      if (!selected) {
+        logger.info('Usage: /model <name>');
+      } else {
+        const prevModel = session.modelName;
+        const match = findModel(selected);
+        const resolved = match ? match.model : selected;
         session.clearProvider();
-        session.modelName = newModel;
-        logger.info(`Switched to ${newModel}`);
+        session.modelName = resolved;
+        try {
+          await engine.createProvider(resolved);
+        } catch (e: unknown) {
+          session.modelName = prevModel;
+          const errMsg = e instanceof Error ? e.message : String(e);
+          if (e instanceof MissingApiKeyError) {
+            logger.warn(`⚠️  No API key configured for ${e.provider}. Some providers also work with /auth connect ${e.provider} or by setting the matching environment variable.`);
+          } else {
+            logger.warn(`⚠️  Model switch failed: ${errMsg}`);
+          }
+          await promptNext(session, rl, config);
+          return;
+        }
+        logger.info(`Switched to ${resolved}`);
       }
       await promptNext(session, rl, config);
       return;
