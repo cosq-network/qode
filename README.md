@@ -42,12 +42,21 @@
 ## CLI Reference
 
 ```bash
-qode --help             # show CLI help
-qode chat               # start an interactive coding session
-qode models             # list available providers and models
-qode auth               # setup or update stored API keys
-qode auth --reset       # remove stored API keys
-qode use <provider> <model> # switch default provider and model
+qode --help                  # show CLI help
+qode chat                    # start an interactive coding session
+qode chat -r <id>            # resume a specific session
+qode chat -m <model>         # start with an initial model
+qode models                  # list available providers and models
+qode update-models           # fetch the latest model lists from providers
+qode auth                    # setup or update stored API keys
+qode auth --reset            # remove stored API keys
+qode use <provider> <model>  # switch default provider and model
+qode sessions                # list saved sessions
+qode session-delete <id>     # delete a saved session
+
+# Global options
+qode --json                  # output machine-readable JSON
+qode --log-level <level>     # set log level: error | info | debug
 ```
 
 ---
@@ -220,4 +229,141 @@ qode auth --reset    # remove all stored API keys
 ```
 
 Stored credentials are kept in `~/.qode/auth.json` and read securely at runtime. For automation, prefer standard [environment variables](#option-b-environment-variables).
+
+---
+
+## Advanced Features
+
+### Interactive File System Browser (`Ctrl+F`)
+Open an interactive file browser during prompt input without leaving the chat flow. Use it to locate files, copy their paths, or reference project structure while you are typing.
+
+### Inline Shell Execution (`!`)
+Run shell commands without exiting the chat. Prefix any prompt with `!` to execute that command in the current working directory.
+
+### Context Compression & Sessions
+Qode compresses conversational history when it nears the context limit. You can also force compression manually with `/compress`.
+
+### Semantic Search
+Search codebase files by meaning rather than filename only. Use `/search <query>` from inside an active session.
+
+### Subagent Delegation
+Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <prompt>` inside the chat.
+
+---
+
+## Prompt Usage & Interactive Features
+
+- **Model switching**: `/model <model>` changes the active model for the current session.
+- **Slash commands**: use built-in commands for review, search, plan management, permissions, sessions, skills, and auth.
+- **Theme switching**: `/theme [name]` lists available themes or switches to the chosen theme.
+- **Mentions**: `@explore <task>` delegates a task to an explore subagent.
+- **Shell inline**: `!cmd` runs a shell command inline.
+- **Clipboard**: `Ctrl+K` copies the last response; `Ctrl+G` pastes clipboard content as a prompt.
+
+---
+
+## Slash Commands Reference
+
+### Core Session
+
+```text
+/model <model>               Switch the active model
+/model                       List available models
+/models                      List available providers and models
+/compress [--keep N]         Force context compression
+/clear                       Clear conversation (keep system)
+/save                        Save the current session
+/sessions                    List saved sessions
+/status                      Show session dashboard (tokens, duration, changed files)
+```
+
+### Agent Behavior & Permissions
+
+```text
+/mode [plan|build]           Switch agent mode or show current mode
+/plan [show|clear|export]    Manage the active plan
+/permissions [cmd]           View/set tool permissions
+/allow-all                   Allow all tools for this session
+/deny-all                    Disable permission bypass
+```
+
+### Review & Generation
+
+```text
+/review <file...>            Review one or more files
+/suggest <description>       Generate a code suggestion
+/search [--rebuild] <query>  Semantic search across codebase
+/task <subagent> <prompt>    Delegate task to a subagent
+@<subagent> <prompt>         Delegate via mention (e.g. @explore <task>)
+!<command>                   Execute a shell command inline
+```
+
+### Skills & Models
+
+```text
+/skills [cmd]                Manage skills (list, search, install, list-local)
+/skills list                 List registry skills
+/skills search <query>       Search registry for skills
+/skills install <name> [--global]
+/skills list-local           List workspace + global installed skills
+/download-status             Check background model download progress
+/update-models               Fetch latest model lists from provider APIs
+```
+
+### Auth & Config
+
+```text
+/auth                        Show auth status for all providers
+/auth connect <provider>     Set up authentication for a provider
+/auth logout <provider>      Remove stored credentials for a provider
+/set-key <provider> <key>    Set an API key for a provider
+/theme [name]                List or switch CLI visual themes
+/copy                        Copy last response to clipboard
+/paste                       Paste clipboard as prompt
+/help                        Show all commands
+/exit                        Quit
+```
+
+---
+
+## Interactive File Browser (Ctrl+F)
+
+When you press `Ctrl+F`, Qode opens an interactive browser overlay. This lets you:
+
+- traverse directories
+- search filenames
+- paste paths back into the prompt
+
+Use it as a quick way to reference files by path without copy-pasting from your terminal.
+
+---
+
+## Shell Execution Mode (!)
+
+Enter a shell command by prefixing your input with `!`:
+
+```text
+!git status
+!npm test
+!ls -la src
+```
+
+This is useful for one-off checks while keeping the conversation and context intact.
+
+---
+
+## Testing & Development
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+---
+
+## License
+
+MIT
+
 

@@ -13,6 +13,7 @@ Welcome to **Qode** (formerly cosqode/cosqcode) — a professional, lightweight,
 6. [Interactive File System Browser (`Ctrl+F`)](#6-interactive-file-system-browser-ctrlf)
 7. [Skills & Remote Registry Caching](#7-skills--remote-registry-caching)
 8. [Configuration & Storage Directory Map](#8-configuration--storage-directory-map)
+9. [Provider Reference](#9-provider-reference)
 
 ---
 
@@ -20,39 +21,24 @@ Welcome to **Qode** (formerly cosqode/cosqcode) — a professional, lightweight,
 
 ### Prerequisites
 - Node.js (version 18 or higher)
-- TypeScript (installed as dev dependency)
-
-### Building the Project
-Clone the repository and compile the TypeScript code:
-```bash
-git clone https://github.com/qode/qode.git
-cd qode
-npm install
-npm run build
-```
 
 ### Installing from GitHub Packages
-Install `qode` directly from GitHub Packages using npm:
+Install `qode` directly from the published GitHub Package:
 ```bash
-npm install @cosq-network/qode --registry=https://npm.pkg.github.com
+npm install @cosq-network/qode@1.2.1 --registry=https://npm.pkg.github.com
 ```
+
+- Repository: https://github.com/cosq-network/qode
+- Package: https://github.com/cosq-network/qode/pkgs/npm/qode
+
 If the package is private, authenticate first with a GitHub token that has `read:packages` scope:
 ```bash
 npm config set //npm.pkg.github.com/:_authToken=<SECRET_03f4a7ff>
 ```
+
 Run a locally installed package with:
 ```bash
 npx qode
-```
-
-### Starting the CLI
-Run the main index file using Node:
-```bash
-node dist/index.js
-```
-Or start via the npm script:
-```bash
-npm start
 ```
 
 ### Storing API Credentials
@@ -244,3 +230,18 @@ Within a specific coding repository, local skills can also be registered inside 
         └── ...
 ```
 These local skills automatically override global custom skills if they share matching filenames.
+
+---
+
+## 9. Provider Reference
+
+Detailed provider notes are in `docs/providers/`:
+- [Google AI Studio](docs/providers/google-ai-studio.md)
+- [OpenAI](docs/providers/openai.md)
+- [Anthropic](docs/providers/anthropic.md)
+- [GitHub Models](docs/providers/github-models.md)
+- [DeepSeek API](docs/providers/deepseek-api.md)
+- [OpenRouter](docs/providers/openrouter.md)
+- [GroqCloud](docs/providers/groqcloud.md)
+- [OpenCode Zen](docs/providers/opencode-zen.md)
+- [Local model](docs/providers/local-model.md)
