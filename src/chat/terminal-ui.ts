@@ -573,7 +573,8 @@ export class TerminalChatUI {
       ? ` ${chalk.hex(this.colors.dimFg)(state.providerName)}`
       : '';
 
-    const left = `${chalk.hex(this.colors.accentFg)('◆')} ${chalk.bold(state.modelName)}${provider}  ${modeDot}`;
+    const displayModel = state.modelName || 'No model selected';
+    const left = `${chalk.hex(this.colors.accentFg)('◆')} ${chalk.bold(displayModel)}${provider}  ${modeDot}`;
     const tokens = state.tokenUsage;
     const recent = state.recentFiles ? chalk.hex(this.colors.dimFg)(state.recentFiles) : '';
     const right = `${tokens}${recent ? `  ${recent}` : ''}`;

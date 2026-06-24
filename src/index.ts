@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { createRequire } from 'module';
 import dotenv from 'dotenv';
-import { pathExistsSync } from 'fs-extra';
+import fse from 'fs-extra';
 import { homedir } from 'os';
 import { dirname, resolve } from 'path';
 import { confirm, isCancel } from '@clack/prompts';
@@ -21,7 +21,7 @@ async function loadQodeEnvFile() {
     let current = resolve(start);
     for (let depth = 0; depth < 32; depth++) {
       const candidate = resolve(current, '.env.qode');
-      if (pathExistsSync(candidate)) {
+      if (fse.pathExistsSync(candidate)) {
         dotenv.config({ path: candidate, debug: false });
         return;
       }
@@ -33,7 +33,7 @@ async function loadQodeEnvFile() {
     }
 
     const homeFile = resolve(homedir(), '.qode.env');
-    if (pathExistsSync(homeFile)) {
+    if (fse.pathExistsSync(homeFile)) {
       dotenv.config({ path: homeFile, debug: false });
     }
   } catch (error) {

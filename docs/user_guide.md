@@ -15,6 +15,7 @@ Welcome to **Qode** (formerly cosqode/cosqcode) — a professional, lightweight,
 8. [Configuration & Storage Directory Map](#8-configuration--storage-directory-map)
 9. [Authentication](#9-authentication)
 10. [Provider Reference](#10-provider-reference)
+11. [Project Environment Files](#11-project-environment-files)
 
 ---
 
@@ -275,3 +276,49 @@ Detailed provider notes are in `docs/providers/`:
 - [OpenCode Zen](docs/providers/opencode-zen.md)
 - [Z.ai](docs/providers/z-ai.md)
 - [Local model](docs/providers/local-model.md)
+
+---
+
+## 11. Project Environment Files
+
+Qode can load environment variables from a project-level `.env.qode` file.
+
+### Overview
+
+- Qode looks for `.env.qode` in the current directory and its parent directories.
+- It loads the first `.env.qode` it finds, starting from the working directory.
+- It also loads `~/.qode.env` if no `.env.qode` was found.
+- Existing environment variables are preserved.
+- Qode will not overwrite an environment variable that is already set.
+
+### Example `.env.qode`
+
+```text
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+DEEPSEEK_API_KEY=sk-...
+OPENROUTER_API_KEY=sk-or-...
+GROQ_API_KEY=...
+OPENCODE_ZEN_API_KEY=...
+```
+
+### Example `~/.qode.env`
+
+```text
+OPENAI_API_KEY=sk-...
+```
+
+### Search behavior
+
+1. Start from the current working directory.
+2. Walk up parent directories looking for `.env.qode`.
+3. Stop at the first match and load it.
+4. If no `.env.qode` is found, load `~/.qode.env`.
+5. If both are missing, Qode continues with existing environment variables.
+
+### Notes
+
+- This feature is intended for project-specific configuration and secrets.
+- Do not commit `.env.qode` to version control.
+- Prefer `qode auth` for interactive credential management.
+- Environment variables take precedence over `.env.qode` values if already present.

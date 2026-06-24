@@ -100,7 +100,8 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
     intro(chalk.bold.cyan('Qode'));
   }
 
-  let modelName = initialModel || config.defaultModel || 'Gemini 2.5 Flash';
+  const firstModel = (initialModel || config.defaultModel || '') as string;
+  let modelName = firstModel;
   let session: Session;
 
   // session creation or resume
@@ -116,10 +117,14 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
     await session.loadCompressionConfig();
     logger.info(`Resumed session ${resumeId} with model ${modelName}`);
   } else {
+    modelName = firstModel;
     session = new Session(uuidv4(), modelName);
     await session.loadCompressionConfig();
     await saveSession(session.id, session.toJSON());
-    logger.debug(`New session ${session.id} with ${modelName}`);
+    logger.debug(`New session ${session.id} with ${modelName || 'no model selected'}`);
+    if (activeUI && !modelName) {
+      activeUI.appendLine(chalk.yellow('No default model configured. Use /model <name> to select one.'));
+    }
   }
 
   setCwd(process.cwd());
