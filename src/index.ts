@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { createRequire } from 'module';
 // import ora from 'ora';
-import { confirm, isCancel, password } from '@clack/prompts';
+import { confirm, isCancel } from '@clack/prompts';
 import { logger } from './utils/logger.js';
 import { startChatLoop } from './chat/loop.js';
 import { downloadQwenModel } from './commands/slash.js';
@@ -43,8 +43,6 @@ void (async () => {
   }
 })();
 import { listModels, updateModels } from './providers/models.js';
-import { saveCredentials } from './auth/storage.js';
-
 import { listSessions, deleteSession } from './utils/storage.js';
 
 export const program = new Command();
