@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { createRequire } from 'module';
-// import ora from 'ora';
+import dotenv from 'dotenv';
+import { pathExistsSync } from 'fs-extra';
+import { homedir } from 'os';
+import { dirname, resolve } from 'path';
 import { confirm, isCancel } from '@clack/prompts';
 import { logger } from './utils/logger.js';
 import { startChatLoop } from './chat/loop.js';
@@ -9,6 +12,39 @@ import { downloadQwenModel } from './commands/slash.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
+
+const SENTINEL = 'QODE_DOTENV_LOADED';
+
+async function loadQodeEnvFile() {
+  try {
+    const start = process.cwd();
+    let current = resolve(start);
+    for (let depth = 0; depth < 32; depth++) {
+      const candidate = resolve(current, '.env.qode');
+      if (pathExistsSync(candidate)) {
+        dotenv.config({ path: candidate, debug: false });
+        return;
+      }
+      const parent = dirname(current);
+      if (parent === current) {
+        break;
+      }
+      current = parent;
+    }
+
+    const homeFile = resolve(homedir(), '.qode.env');
+    if (pathExistsSync(homeFile)) {
+      dotenv.config({ path: homeFile, debug: false });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Warning: skipped loading Qode env file: ${message}`);
+  }
+}
+
+if (!process.env[SENTINEL]) {
+  loadQodeEnvFile();
+}
 
 // Background model download
 void (async () => {
@@ -42,6 +78,7 @@ void (async () => {
     logger.error(`Failed to start llama-server: ${(e as Error).message}`);
   }
 })();
+
 import { listModels, updateModels } from './providers/models.js';
 import { listSessions, deleteSession } from './utils/storage.js';
 
@@ -99,12 +136,19 @@ program
     if (opts.reset) {
       const ok = await confirm({ message: 'Delete all stored API keys?' });
       if (!isCancel(ok) && ok) {
-        await import('./config.js').then(m => m.saveConfig({ providers: {}, autoCompress: true, compressThreshold: 0.8, mcpServers: [] }));
+        await import('./config.js').then((m) =>
+          m.saveConfig({
+            providers: {},
+            autoCompress: true,
+            compressThreshold: 0.8,
+            mcpServers: [],
+          }),
+        );
         console.log('All credentials cleared.');
         return;
       }
     }
-    await import('./config.js').then(m => m.configureAuth());
+    await import('./config.js').then((m) => m.configureAuth());
   });
 
 // switch default provider and model
@@ -115,7 +159,10 @@ program
     try {
       const { loadConfig, saveConfig } = await import('./config.js');
       const config = await loadConfig();
-      config.providers = { ...(config.providers ?? {}), [provider]: { ...(config.providers?.[provider] ?? {}) } };
+      config.providers = {
+        ...(config.providers ?? {}),
+        [provider]: { ...(config.providers?.[provider] ?? {}) },
+      };
       config.defaultModel = model;
       await saveConfig(config);
       console.log(`Switched default to ${provider} / ${model}`);
