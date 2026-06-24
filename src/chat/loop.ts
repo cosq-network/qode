@@ -288,8 +288,7 @@ Commands:
 
     // Model switching
     if (trimmed.startsWith('/model')) {
-      const trimmedInput = trimmed.slice('/model'.length).trim();
-      const selected = trimmedInput ? trimmedInput.split(/\s+/)[0] : '';
+      const selected = trimmed.slice('/model'.length).trim();
       if (!selected) {
         logger.info('Usage: /model <name>');
       } else {

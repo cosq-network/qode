@@ -652,7 +652,6 @@ export class TerminalChatUI {
 
     if (this.completionState && this.suggestions.length > 0) {
       const total = this.suggestions.length;
-      const boxW = Math.floor(Number(this.screen.width) || 80) - 4;
       const maxVisible = Math.min(6, total, Math.max(2, Math.floor((Number(this.screen.height) - 8) / 2)));
       const half = Math.floor(maxVisible / 2);
 
@@ -670,14 +669,11 @@ export class TerminalChatUI {
       for (let i = 0; i < visible.length; i++) {
         const idx = start + i;
         const item = visible[i];
-        // Use string-width for proper display width measurement and slice-ansi for safe truncation
-        const displayWidth = getStringWidth(item);
-        const trimmed = displayWidth > boxW ? sliceAnsiSafe(item, 0, Math.max(0, boxW - 1)) + '…' : item;
         const isSel = idx === this.suggestionIndex;
         const prefix = isSel ? chalk.hex(this.colors.accentFg)('▸') : ' ';
         const styled = isSel
-          ? chalk.bgHex('#3b4261').hex('#c0caf5')(` ${trimmed} `)
-          : chalk.hex(this.colors.suggestionFg)(` ${trimmed} `);
+          ? chalk.bgHex('#3b4261').hex('#c0caf5')(` ${item} `)
+          : chalk.hex(this.colors.suggestionFg)(` ${item} `);
         lines.push(`${prefix} ${styled}`);
       }
 
@@ -1102,7 +1098,10 @@ export class TerminalChatUI {
         return;
       }
       this.refreshCompletionState();
-      if (this.suggestions.length > 0) {
+      if (this.suggestions.length > 1) {
+        this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
+        this.applySuggestion(this.getSelectedSuggestion());
+      } else if (this.suggestions.length === 1) {
         this.applySuggestion(this.getSelectedSuggestion());
       }
     });
@@ -1110,10 +1109,8 @@ export class TerminalChatUI {
 
     this.screen.key(['up'], () => {
       if (this.suggestions.length > 0 && !this.historySearchActive) {
-        if (this.suggestionIndex > 0) {
-          this.suggestionIndex--;
-          this.queueRender();
-        }
+        this.suggestionIndex = (this.suggestionIndex - 1 + this.suggestions.length) % this.suggestions.length;
+        this.queueRender();
         return;
       }
       this.navigateHistory(-1);
@@ -1122,10 +1119,8 @@ export class TerminalChatUI {
 
     this.screen.key(['down'], () => {
       if (this.suggestions.length > 0 && !this.historySearchActive) {
-        if (this.suggestionIndex < this.suggestions.length - 1) {
-          this.suggestionIndex++;
-          this.queueRender();
-        }
+        this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
+        this.queueRender();
         return;
       }
       this.navigateHistory(1);
@@ -1215,6 +1210,9 @@ export class TerminalChatUI {
       if (this.historySearchActive) {
         this.acceptHistorySearch();
         return;
+      }
+      if (this.suggestions.length > 0 && this.completionState) {
+        this.applySuggestion(this.getSelectedSuggestion());
       }
       const next = this.inputValue.trimEnd();
       this.clearInput();
