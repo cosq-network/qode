@@ -299,7 +299,8 @@ Commands:
         session.clearProvider();
         session.modelName = resolved;
         try {
-          await engine.createProvider(resolved);
+          const provider = await engine.createProvider(resolved);
+          session.setProvider(provider);
         } catch (e: unknown) {
           session.modelName = prevModel;
           const errMsg = e instanceof Error ? e.message : String(e);
@@ -1126,7 +1127,7 @@ async function promptNext(session: Session, rl: readline.Interface, config: any)
       : '0 / 0';
     activeUI.setState({
       cwd: process.cwd(),
-      modelName: session.modelName,
+      modelName: session.modelName || session.provider?.modelName || 'No model selected',
       providerName,
       mode: session.mode,
       tokenUsage,
