@@ -2,61 +2,70 @@
 
 Qode provider key: `Anthropic`
 
-## API key
+Reference pages:
+- https://console.anthropic.com
+- https://docs.anthropic.com
 
-- Exact key name: Anthropic API key from the Anthropic Console.
-- Docs page: `https://console.anthropic.com`.
+## Intended use
 
-Save it with:
+Use this provider for Anthropic's Claude models accessed by API key.
+
+## Credential setup
+
+Save using Qode's interactive auth flow:
 ```bash
 qode auth
 ```
 
-### Environment variable override
+Then choose `Anthropic` and paste an API key from https://console.anthropic.com.
 
-Use the exact env var name Qode reads:
+## Runtime auth behavior
 
-```bash
-ANTHROPIC_API_KEY="your-anthropic-key" qode your-chat-args
+- `qode auth` stores the key in `~/.qode/auth.json` and revalidates it.
+- For non-interactive environments, set `ANTHROPIC_API_KEY`.
+- The runtime prefers `ANTHROPIC_API_KEY` from the environment when present.
+
+## Environment variables
+
+Preferred:
+```text
+ANTHROPIC_API_KEY=...
 ```
 
-Persist on macOS/Linux:
-```bash
-echo 'export ANTHROPIC_API_KEY="your-anthropic-key"' >> ~/.bashrc
-# or ~/.zshrc
-```
+Value required by provider: an Anthropic API key.
 
-Windows PowerShell:
-```powershell
-$env:ANTHROPIC_API_KEY='your-anthropic-key'
-[System.Environment]::SetEnvironmentVariable('ANTHROPIC_API_KEY','your-anthropic-key','User')
-```
+## Which activation/payment sources apply
+
+- Requires an Anthropic account with API access enabled.
+- Access may require credits or an eligible Claude subscription depending on account state.
+- Verification is attempted through the Messages API using a small probe request.
+
+## Headless / server usability
+
+Yes. This provider is suitable for servers and CI when:
+- `ANTHROPIC_API_KEY` is provided via environment or secret store,
+- and outbound HTTPS to Anthropic endpoints is allowed.
 
 ## Available models
 
-Current integrated model for this provider:
-
+Current integration includes:
 - `claude-3-haiku-20240307`
 
-Choose it with:
+Choose with:
 ```text
 /model claude-3-haiku-20240307
 ```
+
+Additional Claude model IDs may be usable depending on your Anthropic Console access and provider mapping.
 
 ## Switching models
 
-Use Qode's model switch command, for example:
+Change the active model for the current session:
 ```text
 /model claude-3-haiku-20240307
 ```
 
-Current integration uses this model in auth validation; other Claude model IDs may be used depending on your Anthropic Console access and provider mapping.
+## Limits and notes
 
-## Subscription / sign-in
-
-You need an Anthropic Console account. API access may require billing-enabled credits or an eligible Claude subscription.
-
-## Limits
-
-- This setup validates the key by sending a small request to the Claude messages endpoint.
-- Context and rate limits depend on the Claude model and your Anthropic account tier.
+- API access eligibility depends on account tier and billing status.
+- Validation uses a minimal Messages API request.

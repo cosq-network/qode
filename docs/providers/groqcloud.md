@@ -1,21 +1,17 @@
 # GroqCloud
 
 Qode provider key: `GroqCloud`
+Environment variable: `GROQ_API_KEY`
 
-## API key
+## Intended use
 
-- Exact key name: Groq API key from the Groq Console/Cloud dashboard.
-- Docs page: `https://console.groq.com/docs/quickstart`.
+Use this provider for Groq-hosted models optimized for low-latency inference.
 
-Save it with:
-```bash
-qode auth
-```
+## Credential setup
 
-### Environment variable override
+This provider currently supports API key auth via environment variable only.
 
-Qode maps this provider to:
-
+Set for a single session:
 ```bash
 GROQ_API_KEY="your-groq-key" qode your-chat-args
 ```
@@ -32,34 +28,46 @@ $env:GROQ_API_KEY='your-groq-key'
 [System.Environment]::SetEnvironmentVariable('GROQ_API_KEY','your-groq-key','User')
 ```
 
+Interactive `qode auth` setup is not available for this provider yet.
+
+## Runtime auth behavior
+
+- The runtime prefers `GROQ_API_KEY` from the environment at launch.
+- No API key is stored automatically by `qode auth` for this provider today.
+
+## Which activation/payment sources apply
+
+- Requires a GroqCloud account.
+- Usage and feature access can depend on account state.
+- Some tiers may have rate or model restrictions.
+
+## Headless / server usability
+
+Yes. This provider is suitable for servers and CI when:
+- `GROQ_API_KEY` is provided via environment or secret store,
+- and outbound HTTPS to Groq endpoints is allowed.
+
 ## Available models
 
-Current integrated models for this provider:
-
+Current integration includes:
 - `Qwen3 (32B)`
 - `Llama 4 Scout (17B)`
 
-Choose one with:
+Choose with:
 ```text
 /model Qwen3 (32B)
 ```
+
+Other model IDs may be usable depending on account access and provider mapping.
 
 ## Switching models
 
-Use Qode's model switch command, for example:
+Change the active model for the current session:
 ```text
 /model Qwen3 (32B)
 ```
 
-## Subscription / sign-in
+## Limits and notes
 
-You need a GroqCloud account.
-
-## Limits
-
-- Default models in this setup include `Qwen3 (32B)` and `Llama 4 Scout (17B)`.
-- Use Groq's docs for current rate and token limits per model.
-
-## Verification
-
-Some Groq providers recommend verifying the saved key by calling a models list endpoint if needed. If authentication appears invalid, recheck the dashboard key and then rerun `qode auth`.
+- Rate and token limits depend on model and account tier.
+- If authentication appears invalid, recheck the dashboard key.

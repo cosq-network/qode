@@ -1,21 +1,17 @@
 # DeepSeek API
 
 Qode provider key: `DeepSeek API`
+Environment variable: `DEEPSEEK_API_KEY`
 
-## API key
+## Intended use
 
-- Exact key name: DeepSeek API key from the developer dashboard.
-- Docs page: `https://api-docs.deepseek.com/`.
+Use this provider for DeepSeek's hosted chat and reasoning models.
 
-Save it with:
-```bash
-qode auth
-```
+## Credential setup
 
-### Environment variable override
+This provider currently supports API key auth via environment variable only.
 
-Use the exact env var Qode reads:
-
+Set for a single session:
 ```bash
 DEEPSEEK_API_KEY="your-deepseek-key" qode your-chat-args
 ```
@@ -32,34 +28,46 @@ $env:DEEPSEEK_API_KEY='your-deepseek-key'
 [System.Environment]::SetEnvironmentVariable('DEEPSEEK_API_KEY','your-deepseek-key','User')
 ```
 
+Interactive `qode auth` setup is not available for this provider yet.
+
+## Runtime auth behavior
+
+- The runtime prefers `DEEPSEEK_API_KEY` from the environment at launch.
+- No API key is stored automatically by `qode auth` for this provider today.
+
+## Which activation/payment sources apply
+
+- Requires a DeepSeek developer account with API access enabled.
+- Usage follows DeepSeek platform terms.
+- Current models are accessed through DeepSeek's API using the above key.
+
+## Headless / server usability
+
+Yes. This provider is suitable for servers and CI when:
+- `DEEPSEEK_API_KEY` is provided via environment or secret store,
+- and outbound HTTPS to DeepSeek endpoints is allowed.
+
 ## Available models
 
-Current integrated models for this provider:
-
+Model options include:
 - `DeepSeek V4-Pro`
 - `DeepSeek V4-Flash`
 
-Choose one with:
+Choose with:
 ```text
 /model DeepSeek V4-Pro
 ```
+
+Other DeepSeek model IDs may be usable depending on provider mapping.
 
 ## Switching models
 
-Use Qode's model switch command, for example:
+Change the active model for the current session:
 ```text
 /model DeepSeek V4-Pro
 ```
 
-## Subscription / sign-in
+## Limits and notes
 
-You need a DeepSeek developer account with API access enabled.
-
-## Limits
-
-- Default models in this setup include `DeepSeek V4-Pro` and `DeepSeek V4-Flash`.
-- Review the DeepSeek platform docs for rate and token limits by model.
-
-## When `qode auth` prompts show only "DeepSeek API"
-
-That is the configured provider name used by Qode. The credential it saves is the DeepSeek API key itself.
+- Rate and token limits depend on model and account status.
+- If authentication appears invalid, recheck the dashboard key.

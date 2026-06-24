@@ -13,7 +13,8 @@ Welcome to **Qode** (formerly cosqode/cosqcode) — a professional, lightweight,
 6. [Interactive File System Browser (`Ctrl+F`)](#6-interactive-file-system-browser-ctrlf)
 7. [Skills & Remote Registry Caching](#7-skills--remote-registry-caching)
 8. [Configuration & Storage Directory Map](#8-configuration--storage-directory-map)
-9. [Provider Reference](#9-provider-reference)
+9. [Authentication](#9-authentication)
+10. [Provider Reference](#10-provider-reference)
 
 ---
 
@@ -48,11 +49,14 @@ qode auth
 ```
 This interactive screen lets you save API keys for:
 - Google AI Studio (Gemini)
+- OpenAI
+- Anthropic
 - GitHub Models
 - DeepSeek API
 - OpenRouter
 - GroqCloud
 - OpenCode Zen
+- GitHub Copilot
 
 ---
 
@@ -61,7 +65,7 @@ This interactive screen lets you save API keys for:
 Each prompt iteration renders a neat visual dashboard header summarizing session states, model parameters, and context usages.
 
 ### Theme Switching (`/theme`)
-Qode supports five custom color themes for maximum terminal readability. Change your theme on-the-fly:
+Qode supports several custom color themes for terminal readability. Change your theme on-the-fly:
 ```text
 /theme ocean
 ```
@@ -122,7 +126,7 @@ Instead of typing, you can leverage native hotkeys bound to your host clipboard:
 
 ---
 
-### Path Suggestions with `@` Prefix
+## 4.1 Path Suggestions with `@` Prefix
 
 You can reference files or directories directly in your prompt by typing `@` followed by the beginning of the path. The autocomplete will suggest matching entries from the current working directory.
 
@@ -135,6 +139,7 @@ You can reference files or directories directly in your prompt by typing `@` fol
 Press **Tab** or **Enter** to accept the suggestion, which inserts the full relative path at the cursor.
 
 This works alongside other prompt features like multiline input and clipboard shortcuts.
+
 ---
 
 ## 5. Shell Execution Mode (`!`)
@@ -153,7 +158,7 @@ The standard output (`stdout`) and error streams (`stderr`) are piped directly t
 Typing `!cd` is handled natively by the parent process. It changes the current directory of the CLI:
 ```text
 !cd src/chat
-!cd ~/Projects/my-app
+!!cd ~/Projects/my-app
 ```
 Subsequent tool calls, file reviews, status indicators, and subsequent `!` command executions reflect this directory change.
 
@@ -233,15 +238,40 @@ These local skills automatically override global custom skills if they share mat
 
 ---
 
-## 9. Provider Reference
+## 9. Authentication
+
+Full auth guidance is in [`docs/auth.md`](docs/auth.md).
+
+Quick start:
+```bash
+qode auth
+qode auth --reset
+```
+
+Qode stores credentials in `~/.qode/auth.json` and validates them when possible.
+
+Providers available in the interactive `qode auth` flow:
+- Google AI Studio
+- OpenAI
+- Anthropic
+- GitHub Copilot
+
+Other supported providers can be used with direct environment variables instead.
+
+---
+
+## 10. Provider Reference
 
 Detailed provider notes are in `docs/providers/`:
+- [Authentication and provider overview](docs/auth.md)
 - [Google AI Studio](docs/providers/google-ai-studio.md)
 - [OpenAI](docs/providers/openai.md)
 - [Anthropic](docs/providers/anthropic.md)
 - [GitHub Models](docs/providers/github-models.md)
+- [GitHub Copilot](docs/providers/github-copilot.md)
 - [DeepSeek API](docs/providers/deepseek-api.md)
 - [OpenRouter](docs/providers/openrouter.md)
 - [GroqCloud](docs/providers/groqcloud.md)
 - [OpenCode Zen](docs/providers/opencode-zen.md)
+- [Z.ai](docs/providers/z-ai.md)
 - [Local model](docs/providers/local-model.md)

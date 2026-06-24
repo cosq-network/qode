@@ -1,21 +1,17 @@
 # OpenRouter
 
 Qode provider key: `OpenRouter`
+Environment variable: `OPENROUTER_API_KEY`
 
-## API key
+## Intended use
 
-- Exact credential: OpenRouter API key created in OpenRouter.
-- Key management page: `https://openrouter.ai/keys`.
+Use this provider to access a wide model marketplace through a single OpenRouter API key.
 
-Save it with:
-```bash
-qode auth
-```
+## Credential setup
 
-### Environment variable override
+This provider currently supports API key auth via environment variable only.
 
-Use the exact env var name:
-
+Set for a single session:
 ```bash
 OPENROUTER_API_KEY="your-openrouter-key" qode your-chat-args
 ```
@@ -32,37 +28,48 @@ $env:OPENROUTER_API_KEY='your-openrouter-key'
 [System.Environment]::SetEnvironmentVariable('OPENROUTER_API_KEY','your-openrouter-key','User')
 ```
 
-## Switching models
+Interactive `qode auth` setup is not available for this provider yet.
 
-Use Qode's model switch command, for example:
-```text
-/model gpt-oss-120b
-```
+## Runtime auth behavior
 
-## Subscription / sign-in
+- The runtime prefers `OPENROUTER_API_KEY` from the environment at launch.
+- No API key is stored automatically by `qode auth` for this provider today.
 
-You need an OpenRouter account. Some models require credits or subscriptions.
+## Which activation/payment sources apply
 
-## Limits
+- Requires an OpenRouter account.
+- Some models require credits, prepaid balances, or enabled subscriptions.
+- Model availability can depend on account settings and OpenRouter routing.
+- Preferred subscription or account-based access applies according to OpenRouter's current terms.
 
-- Default models in this setup include `Laguna M.1 (Poolside)`, `Qwen3-Coder`, and `gpt-oss-120b`.
-- Token and rate limits depend on the model and your OpenRouter plan.
+## Headless / server usability
+
+Yes. This provider is suitable for servers and CI when:
+- `OPENROUTER_API_KEY` is provided via environment or secret store,
+- and outbound HTTPS to OpenRouter endpoints is allowed.
 
 ## Available models
 
-Current integrated models for this provider:
-
+Model options include:
 - `Laguna M.1 (Poolside)`
 - `Qwen3-Coder`
 - `gpt-oss-120b`
 
-Choose one with:
+Choose with:
 ```text
 /model Laguna M.1 (Poolside)
 ```
 
-OpenRouter also exposes many additional models; other IDs may work if they are available on your OpenRouter account and route.
+Other OpenRouter models may be usable if they are available on your account and route.
 
 ## Switching models
 
-Use Qode's model switch command, for example:
+Change the active model for the current session:
+```text
+/model Laguna M.1 (Poolside)
+```
+
+## Limits and notes
+
+- Usage limits depend on model and your OpenRouter plan.
+- Credit/billing requirements apply for paid models.

@@ -2,27 +2,25 @@
 
 Qode provider key: `GitHub Models`
 
-## API key
+Environment variable: `GITHUB_MODELS_API_KEY`
+Reference pages:
+- https://github.com/marketplace/models
+- https://docs.github.com/en/github-models
 
-- Exact credential: GitHub personal access token with access to GitHub Models.
-- Manage it in Settings -> Developer settings -> Personal access tokens.
+## Intended use
 
-Save it with:
-```bash
-qode auth
-```
+Use this provider for GitHub marketplace/inference models through a GitHub token.
 
-### Environment variable override
+## Credential setup
 
-GitHub Models integration follows the documentation configurable Terraform provider with the required key being `github_token`, so use the exact variable name below:
+This provider currently supports token auth via environment variable only.
 
+Set for a single session:
 ```bash
 GITHUB_MODELS_API_KEY="your-github-token" qode your-chat-args
 ```
 
-Recommended shell persistence:
-
-macOS/Linux:
+Persist on macOS/Linux:
 ```bash
 echo 'export GITHUB_MODELS_API_KEY="your-github-token"' >> ~/.bashrc
 # or ~/.zshrc
@@ -31,39 +29,50 @@ echo 'export GITHUB_MODELS_API_KEY="your-github-token"' >> ~/.bashrc
 Windows PowerShell:
 ```powershell
 $env:GITHUB_MODELS_API_KEY='your-github-token'
-# or persistent:
 [System.Environment]::SetEnvironmentVariable('GITHUB_MODELS_API_KEY','your-github-token','User')
 ```
 
+Interactive `qode auth` setup is not available for this provider yet.
+
+## Runtime auth behavior
+
+- The runtime prefers `GITHUB_MODELS_API_KEY` from the environment at launch.
+- No token is stored automatically by `qode auth` for this provider today.
+
+## Which activation/payment sources apply
+
+- Requires a GitHub account.
+- Model access and rate limits can depend on GitHub access state.
+- Getting a 404 or 403 from model invocations may reflect GitHub model access settings more than token format.
+
+## Headless / server usability
+
+Yes. This provider is suitable for servers and CI when:
+- `GITHUB_MODELS_API_KEY` is provided via environment or secret store,
+- and outbound HTTPS to GitHub API endpoints is allowed.
+
 ## Available models
 
-Current integrated models for this provider:
-
+Current integration includes:
 - `DeepSeek-R1`
 - `o4-mini`
 - `Llama-4-Scout-17B`
 
-Choose one with:
+Choose with:
 ```text
 /model DeepSeek-R1
 ```
+
+Other model IDs may be usable depending on account access and provider mapping.
 
 ## Switching models
 
-Use Qode's model switch command, for example:
+Change the active model for the current session:
 ```text
 /model DeepSeek-R1
 ```
 
-## Subscription / sign-in
+## Limits and notes
 
-You need a GitHub account. Availability can depend on GitHub Models access settings.
-
-## Limits
-
-- Default models in this setup include `DeepSeek-R1`, `o4-mini`, and `Llama-4-Scout-17B`.
-- Exact limits depend on model and your access level.
-
-## Authentication behavior
-
-If you store credentials with `qode auth`, Qode reads them from its secure encrypted auth storage (`~/.qode/auth.json`). For automation, prefer the environment variable form above.
+- Rate and token limits depend on account access level and model.
+- If authentication appears invalid, check token scope.

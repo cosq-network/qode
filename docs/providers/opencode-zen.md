@@ -1,22 +1,19 @@
 # OpenCode Zen
 
-Qode provider key: `OpenCode Zen`
-Base URL: `https://opencode.ai/zen/v1`
+Qode provider key: `OpenCode Zen`, `OpenCode`
 
-## API key
+Base URL: https://opencode.ai/zen/v1
+Environment variable: `OPENCODE_ZEN_API_KEY`
 
-- Exact key name: OpenCode Zen API key from the OpenCode Zen account screen/OpenCode provider section.
-- Related: OpenCode provider docs at `https://opencode.ai/docs/providers/`.
+## Intended use
 
-Save it with:
-```bash
-qode auth
-```
+Use this provider for OpenCode Zen-hosted models.
 
-### Environment variable override
+## Credential setup
 
-Use the exact env var name:
+This provider currently supports API key auth via environment variable only.
 
+Set for a single session:
 ```bash
 OPENCODE_ZEN_API_KEY="your-opencode-zen-key" qode your-chat-args
 ```
@@ -33,38 +30,48 @@ $env:OPENCODE_ZEN_API_KEY='your-opencode-zen-key'
 [System.Environment]::SetEnvironmentVariable('OPENCODE_ZEN_API_KEY','your-opencode-zen-key','User')
 ```
 
+Interactive `qode auth` setup is not available for this provider yet.
+
+## Runtime auth behavior
+
+- The runtime prefers `OPENCODE_ZEN_API_KEY` from the environment at launch.
+- No API key is stored automatically by `qode auth` for this provider today.
+
+## Which activation/payment sources apply
+
+- Requires compatible OpenCode access.
+- Zen access details should be confirmed from OpenCode docs if public availability changes.
+- Limits can depend on account tier and selected model.
+
+## Headless / server usability
+
+Yes. This provider is suitable for servers and CI when:
+- `OPENCODE_ZEN_API_KEY` is provided via environment or secret store,
+- and outbound HTTPS to `https://opencode.ai/zen/v1` is allowed.
+
 ## Available models
 
-Current integrated models for this provider:
-
+Current integration includes:
 - `Big Pickle`
 - `deepseek-v4-flash-free`
 - `nemotron-3-ultra-free`
 - `qwen3-5-plus`
 
-Choose one with:
+Choose with:
 ```text
 /model Big Pickle
 ```
+
+The alias `Big Pickle` maps to the internal model name `big-pickle`.
 
 ## Switching models
 
-Use Qode's model switch command, for example:
+Change the active model for the current session:
 ```text
 /model Big Pickle
 ```
 
-The model name alias `Big Pickle` maps to the internal model name `big-pickle`.
+## Limits and notes
 
-## Subscription / sign-in
-
-You need an OpenCode-compatible account with access to Zen. Zen access details should be confirmed from OpenCode docs if public availability changes.
-
-## Limits
-
-- Default models in this setup include `Big Pickle`, `deepseek-v4-flash-free`, `nemotron-3-ultra-free`, and `qwen3-5-plus`.
-- Limits depend on the selected model and OpenCode access tier.
-
-## Key vs resource name
-
-For Zen, you set the API key as above; OpenCode exposes configurable resource name behavior in its provider docs. Zen here uses the `/zen/v1` base URL.
+- Limits depend on the selected model and Zen access state.
+- If the provider list changes, check OpenCode provider docs.

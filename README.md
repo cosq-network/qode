@@ -228,7 +228,7 @@ qode auth            # interactive key setup
 qode auth --reset    # remove all stored API keys
 ```
 
-Stored credentials are kept in `~/.qode/auth.json` and read securely at runtime. For automation, prefer standard [environment variables](#option-b-environment-variables).
+Stored credentials are kept in `~/.qode/auth.json` and read securely at runtime. See [Authentication docs](docs/auth.md) for provider setup, environment variables, and headless/server usage.
 
 ---
 

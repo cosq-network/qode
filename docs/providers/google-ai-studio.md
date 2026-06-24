@@ -2,64 +2,70 @@
 
 Qode provider key: `Google AI Studio`
 
-## API key
+Reference pages:
+- https://aistudio.google.com
+- https://ai.google.dev/gemini-api/docs/api-key
 
-- Exact key name: Google AI Studio API key.
-- Primary references: `https://aistudio.google.com` and `https://ai.google.dev/gemini-api/docs/api-key`.
+## Intended use
 
-Save it with:
+This provider is for Google-hosted Gemini models accessed with a Google AI Studio API key.
+
+## Credential setup
+
+Save using Qode's interactive auth flow:
 ```bash
 qode auth
 ```
 
-### Environment variable override
-For CI or persistent shells, set the exact env var name:
+Then choose `Google AI Studio` and paste an API key from https://aistudio.google.com/app/apikey.
 
-```bash
-GOOGLE_API_KEY="your-google-api-key" qode your-chat-args
+## Runtime auth behavior
+
+- `qode auth` stores the key in `~/.qode/auth.json` and can revalidate it.
+- For non-interactive environments, set `GOOGLE_API_KEY`.
+- Environmental `GOOGLE_API_KEY` is preferred by the runtime at launch if present.
+
+## Environment variables
+
+Preferred:
+```text
+GOOGLE_API_KEY=...
 ```
 
-Persist on macOS/Linux by adding to your profile:
-```bash
-echo 'export GOOGLE_API_KEY="...'" >> ~/.bashrc
-# or ~/.zshrc
-```
+Value required by provider: a Google AI Studio API key.
 
-Windows PowerShell:
-```powershell
-$env:GOOGLE_API_KEY='...'
-# or for the current user:
-[System.Environment]::SetEnvironmentVariable('GOOGLE_API_KEY','...','User')
-```
+## Which activation/payment sources apply
 
-If `GOOGLE_API_KEY` is present at launch, Qode uses it automatically.
+- Standard Google AI Studio pay-as-you-go is supported when billing is enabled on the Google project tied to the API key.
+- Some access may be available through eligible Google accounts or credits.
+- AI Ultra or Workspace-linked access may still use the same API key; provider eligibility is controlled from Google's side.
+
+## Headless / server usability
+
+Yes. This provider is appropriate for servers and CI when:
+- `GOOGLE_API_KEY` is supplied through the environment or secret store,
+- and outbound HTTPS to Google endpoints is allowed.
 
 ## Available models
 
-Current integrated models for this provider:
-
+Model options include:
 - `Gemini 3.1 Pro Preview`
 - `Gemini 2.5 Flash`
 
-Choose one with:
-```text
-/model Gemini 3.1 Pro Preview
-```
-
-## Switching models
-
-Use Qode's model switch command, for example:
+Choose with:
 ```text
 /model Gemini 2.5 Flash
 ```
 
-Available models in this setup include `Gemini 3.1 Pro Preview` and `Gemini 2.5 Flash`.
+## Switching models
 
-## Subscription / sign-in
+Change the active model for the current session:
+```text
+/model Gemini 2.5 Flash
+```
 
-No paid Google subscription is required for basic API access. If you have Google AI Ultra/Workspace, use the same API key.
+## Limits and notes
 
-## Limits
-
-- Context is model-dependent: up to 1M tokens for Flash/Pro-style models.
-- Rate limits depend on your Google AI Studio tier.
+- Context can be model-dependent; Flash/Pro-style models generally support large contexts.
+- Rate limits and quotas depend on your Google AI Studio tier.
+- API access can require an enabled billing account.
