@@ -77,10 +77,8 @@ Install `qode` directly from GitHub Packages using npm:
 ```bash
 npm install @cosq-network/qode --registry=https://npm.pkg.github.com
 ```
-If the package is private, authenticate first with a GitHub token that has `read:packages` scope:
-```bash
-npm config set //npm.pkg.github.com/:_authToken=<SECRET_03f4a7ff> GitHub token with read:packages scope)
-```
+If the package is private, authenticate first with a GitHub token that has `read:packages` scope.
+Prefer using a dedicated token with the minimum required scope.
 If you have GitHub Packages configured in your `~/.npmrc`, you can omit the `--registry` flag.
 
 ### 3. Run the CLI

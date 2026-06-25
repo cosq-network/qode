@@ -209,6 +209,7 @@ interface ToolArgs {
   port?: number;
   host?: string;
   debug?: boolean;
+  [extra: string]: unknown;
 }
 
 /**
@@ -1233,9 +1234,8 @@ export async function executeToolCall(
     // FLASK CREATE APP
     // -----------------------------------------------------------------------
     case 'flask_create_app': {
-      const { appName, venvPath, includeTests, cwd: wd } = args;
+      const { appName, includeTests, cwd: wd } = args;
       const name = appName || 'app';
-      const vPath = typeof venvPath === 'string' ? venvPath : '.venv';
       const appDir = path.join(wd || cwd, name);
       await fs.ensureDir(appDir);
       const appPy = [

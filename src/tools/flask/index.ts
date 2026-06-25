@@ -20,7 +20,7 @@ const flaskCreateApp: RegisteredTool = {
       },
     },
   },
-  metadata: { category: 'build', permissionKey: 'write' },
+  metadata: { category: 'build', permissionKey: 'edit' },
   execute: async (args) => {
     const cwd = (args.cwd as string | undefined) ?? process.cwd();
     const appDir = path.join(cwd, 'app');
@@ -130,7 +130,7 @@ const flaskDebugEnable: RegisteredTool = {
       },
     },
   },
-  metadata: { category: 'build', permissionKey: 'write' },
+  metadata: { category: 'build', permissionKey: 'edit' },
   execute: async () => ({ output: 'Flask debug toggle is active via env in flask_run_server.' }),
 };
 

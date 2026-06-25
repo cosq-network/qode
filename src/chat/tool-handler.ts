@@ -35,7 +35,14 @@ export async function processToolCalls(
     }
 
     logger.info(`⚙ Executing ${fnName}(${Object.entries(fnArgs)
-      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+      .map(([key, value]) => {
+        const str = typeof value === 'string' ? value : JSON.stringify(value);
+        const lower = key.toLowerCase();
+        if (/(key|token|secret|password|auth|credential)/.test(lower)) {
+          return `${key}=[REDACTED]`;
+        }
+        return `${key}=${str.length > 60 ? `${str.slice(0, 57)}...` : str}`;
+      })
       .join(', ')})...`);
 
     let result: string;

@@ -9,6 +9,10 @@ import { registerTaskTool } from './task/index.js';
 import { registerRemoteTools } from './remote/index.js';
 import { registerFlaskTools } from './flask/index.js';
 import { registerSemanticSearchTool } from './semantic-search/index.js';
+import { registerIonicTools } from './ionic/index.js';
+import { registerMsBuildTools } from './msbuild/index.js';
+import { registerNpxTools } from './npx/index.js';
+import { registerQemuTools } from './qemu/index.js';
 
 let initialized = false;
 
@@ -26,6 +30,10 @@ export function initializeTools(): void {
   registerSemanticSearchTool();
   registerFlaskTools();
   registerRemoteTools();
+  registerIonicTools();
+  registerMsBuildTools();
+  registerNpxTools();
+  registerQemuTools();
   initialized = true;
 }
 

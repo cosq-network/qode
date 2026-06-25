@@ -1,33 +1,10 @@
-import { exec, execFile } from 'child_process';
-import { promisify } from 'util';
+import { exec } from 'child_process';
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
 import { getCwd } from '../helpers.js';
 import { globalRegistry } from '../registry.js';
 import type { RegisteredTool } from '../registry.js';
-
-const execFileAsync = promisify(execFile);
-
-function sshConnectivityCheck(
-  destination: string,
-  extraArgs: string[] | undefined
-): Promise<boolean> {
-  const sshArgs = [
-    '-o',
-    'BatchMode=yes',
-    '-o',
-    'StrictHostKeyChecking=no',
-    '-o',
-    'ConnectTimeout=8',
-    ...(Array.isArray(extraArgs) ? extraArgs : []),
-    destination,
-    'true',
-  ];
-  return execFileAsync('ssh', sshArgs, { maxBuffer: 1024 * 1024 })
-    .then(() => true)
-    .catch(() => false);
-}
 
 async function shortestExistingKnownHostsPath(): Promise<string | undefined> {
   const candidates = [
@@ -93,7 +70,6 @@ const sshCommand: RegisteredTool = {
     const sshCmd = ['ssh', ...sshBaseArgs, ...normalizedExtraArgs, destination as string, command as string].join(' ');
 
     return new Promise<string>((resolve) => {
-      const start = Date.now();
       exec(
         sshCmd,
         { cwd: (cwd as string | undefined) || getCwd(), maxBuffer: 10 * 1024 * 1024, timeout },
