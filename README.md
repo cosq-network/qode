@@ -109,9 +109,9 @@ qode
 
 ## API Configuration
 
-Qode loads provider configurations and API keys from standard environment variables, falling back to a local JSON configuration file if environment variables are not set.
+Qode is BYOK-only for API-key providers. Provider keys are loaded from environment variables, from `qode auth`, or from project-level `.env.qode` files. Qode does not support subscription sign-in from the chat.
 
-### Option A: Interactive Setup (Recommended)
+### Option A: Interactive API Key Setup (API-key providers)
 Configure API keys interactively from the CLI:
 ```bash
 qode auth
@@ -197,7 +197,14 @@ High-speed execution of open-weight developer models.
   - `mixtral-8x7b-instruct-32768`
   - `gemma2-9b-it`
 
-### 8. OpenCode (Free)
+### 9. GitHub Copilot
+GitHub Copilot is supported only as a device-code/subscription flow. Configure it from the CLI:
+```bash
+qode auth --device github-copilot
+```
+Usage from chat is not available for this provider.
+
+### 10. OpenCode (Free)
 OpenCode provides free, open-source models for coding and tooling tasks.
 - **Required Env Var**: none (no API key needed)
 - **Supported Models**:
@@ -207,7 +214,7 @@ OpenCode provides free, open-source models for coding and tooling tasks.
   - `nemotron-3-ultra-free`
   - `north-mini-code-free`
 
-### 9. Local Models (llama.cpp)
+### 11. Local Models (llama.cpp)
 Run models locally on your machine using llama.cpp.
 - **Prerequisite**: install `llama-server` from `llama.cpp` (for example, `brew install llama.cpp` on macOS). Qode auto-detects the binary at startup. If it is missing, local mode cannot be used even when the model file is already downloaded.
 - **Setup**: enable in config (`~/.qode/config.json`):
@@ -219,16 +226,11 @@ Run models locally on your machine using llama.cpp.
 
 ---
 
-## Authentication
+### Authentication
 
-This repo's secure credential path is:
+Qode is BYOK-only for API-key providers. Credentials are set up via `qode auth`, with keys stored encrypted at `~/.qode/auth.json`. Use `qode auth --reset` to remove stored keys.
 
-```bash
-qode auth            # interactive key setup
-qode auth --reset    # remove all stored API keys
-```
-
-Stored credentials are kept in `~/.qode/auth.json` and read securely at runtime. See [Authentication docs](docs/auth.md) for provider setup, environment variables, and headless/server usage.
+GitHub Copilot is an exception: configure it with `qode auth --device github-copilot`. No subscription sign-in is available through chat commands.
 
 ---
 
@@ -257,6 +259,7 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 - **Slash commands**: use built-in commands for review, search, plan management, permissions, sessions, skills, and auth.
 - **Theme switching**: `/theme [name]` lists available themes or switches to the chosen theme.
 - **Mentions**: `@explore <task>` delegates a task to an explore subagent.
+- **File read shortcut**: `@read <file_path>` reads a file into the chat output.
 - **Shell inline**: `!cmd` runs a shell command inline.
 - **Clipboard**: `Ctrl+K` copies the last response; `Ctrl+G` pastes clipboard content as a prompt.
 
@@ -308,20 +311,6 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 /skills list-local           List workspace + global installed skills
 /download-status             Check background model download progress
 /update-models               Fetch latest model lists from provider APIs
-```
-
-### Auth & Config
-
-```text
-/auth                        Show auth status for all providers
-/auth connect <provider>     Set up authentication for a provider
-/auth logout <provider>      Remove stored credentials for a provider
-/set-key <provider> <key>    Set an API key for a provider
-/theme [name]                List or switch CLI visual themes
-/copy                        Copy last response to clipboard
-/paste                       Paste clipboard as prompt
-/help                        Show all commands
-/exit                        Quit
 ```
 
 ---

@@ -22,9 +22,6 @@ import { THEMES } from '../utils/themes.js';
 import { copyToClipboard, pasteFromClipboard } from '../utils/clipboard.js';
 import { FileBrowser } from '../utils/browser.js';
 import { getSubagentManager } from '../agents/subagent.js';
-import { getAuthManager } from '../auth/manager.js';
-import { AUTH_PROVIDERS } from '../auth/providers.js';
-import { listConfiguredProviders } from '../auth/storage.js';
 import { buildIndex, loadIndex, searchIndex } from '../search/indexer.js';
 import path from 'path';
 import fs from 'fs-extra';
@@ -302,12 +299,8 @@ Commands:
           session.setProvider(provider);
         } catch (e: unknown) {
           if (e instanceof MissingApiKeyError) {
-            const apiKeyEnv = AUTH_PROVIDERS[e.provider]?.apiKeyEnv;
-            const envHint = apiKeyEnv
-              ? ` Or set the ${apiKeyEnv} environment variable for this provider.`
-              : '';
             logger.warn(
-              `⚠️  No API key configured for ${e.provider}. Model is now selected as '${resolved}', but provider setup is incomplete. Run 'qode auth connect ${e.provider}' to set up credentials.${envHint}`
+              `⚠️  No API key configured for ${e.provider}. Model is now selected as '${resolved}', but provider setup is incomplete. Set credentials for this provider and try again.`
             );
             await promptNext(session, rl, config);
             return;
@@ -678,59 +671,6 @@ Skills Commands:
       return;
     }
 
-    // ── Auth commands ────────────────────────────────────────────────
-    if (trimmed.startsWith('/connect')) {
-      // Delegate to /auth connect
-      const parts = trimmed.split(/\s+/);
-      const providerName = parts.slice(1).join(' ').trim();
-      if (!providerName) {
-        await showAuthHelp();
-      } else {
-        await doAuthConnect(providerName);
-      }
-      await promptNext(session, rl, config);
-      return;
-    }
-
-    if (trimmed.startsWith('/auth')) {
-      const parts = trimmed.split(/\s+/);
-      const sub = parts[1];
-
-      if (!sub || sub === 'status') {
-        await getAuthManager().showStatus();
-        const configured = await listConfiguredProviders();
-        if (configured.length === 0) {
-          logger.info('');
-          logger.info('No providers configured. Use /auth connect <provider> to get started.');
-        } else {
-          logger.info('');
-          const unconfigured = Object.keys(AUTH_PROVIDERS).filter((p) => !configured.includes(p));
-          if (unconfigured.length > 0) {
-            logger.info(`Unconfigured: ${unconfigured.join(', ')}`);
-            logger.info('Use /auth connect <provider> or /set-key <provider> <key> to set up.');
-          }
-        }
-      } else if (sub === 'connect') {
-        const providerName = parts.slice(2).join(' ').trim();
-        if (!providerName) {
-          await showAuthHelp();
-        } else {
-          await doAuthConnect(providerName);
-        }
-      } else if (sub === 'logout') {
-        const providerName = parts.slice(2).join(' ').trim();
-        if (!providerName) {
-          logger.info('Usage: /auth logout <provider>');
-        } else {
-          await getAuthManager().disconnectProvider(providerName);
-        }
-      } else {
-        logger.info('Usage: /auth [status|connect <provider>|logout <provider>]');
-      }
-      await promptNext(session, rl, config);
-      return;
-    }
-
     // ── Search command ──────────────────────────────────────────────
     if (trimmed.startsWith('/search')) {
       const parts = trimmed.split(/\s+/);
@@ -938,6 +878,19 @@ Skills Commands:
       return;
     }
 
+    // Check for @read file shortcut
+    if (trimmed.startsWith('@read ')) {
+      const filePath = trimmed.slice('@read'.length).trim();
+      if (!filePath) {
+        logger.info('Usage: @read <file_path>');
+      } else {
+        const content = await engine.executeTool('file_read', { path: filePath });
+        logger.info(`\n--- @read: ${filePath} ---\n${content}\n--- end ---\n`);
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
     // Check for @mention delegation
     const mentionManager = getSubagentManager();
     const mention = mentionManager.parseMention(trimmed);
@@ -1087,41 +1040,6 @@ async function activateSkills(prompt: string, session: Session): Promise<void> {
     }
   } catch (error: any) {
     logger.error(`Failed to load or match skills: ${error.message}`);
-  }
-}
-
-/** Show available auth providers and usage. */
-async function showAuthHelp(): Promise<void> {
-  const configured = await listConfiguredProviders();
-  logger.info('');
-  logger.info('Available providers:');
-  for (const name of Object.keys(AUTH_PROVIDERS)) {
-    const isCfg = configured.includes(name);
-    const icon = isCfg ? '✔' : ' ';
-    const status = isCfg ? 'connected' : `use /set-key ${name} <key> or /auth connect ${name}`;
-    logger.info(`  ${icon} ${name} ${status}`);
-  }
-}
-
-/** Start auth flow for a provider (TUI-friendly — no @clack/prompts). */
-async function doAuthConnect(providerName: string): Promise<void> {
-  const authManager = getAuthManager();
-  const provider = AUTH_PROVIDERS[providerName];
-
-  if (!provider) {
-    logger.info(`\nUnknown provider: ${providerName}`);
-    logger.info(`Available: ${Object.keys(AUTH_PROVIDERS).join(', ')}`);
-    return;
-  }
-
-  if (provider.type === 'api-key') {
-    logger.info(`\nTo set up ${providerName}:`);
-    logger.info(`  /set-key ${providerName} <your-api-key>`);
-    logger.info(`Replace <your-api-key> with your actual API key from ${provider.description}`);
-  } else if (provider.type === 'device-code') {
-    await authManager.startDeviceCodeFlow(providerName);
-  } else {
-    logger.info(`\nProvider ${providerName} (${provider.type}) is not yet supported via chat.`);
   }
 }
 
