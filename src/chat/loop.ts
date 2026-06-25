@@ -301,13 +301,21 @@ Commands:
           const provider = await engine.createProvider(resolved);
           session.setProvider(provider);
         } catch (e: unknown) {
+          if (e instanceof MissingApiKeyError) {
+            const apiKeyEnv = AUTH_PROVIDERS[e.provider]?.apiKeyEnv;
+            const envHint = apiKeyEnv
+              ? ` Or set the ${apiKeyEnv} environment variable for this provider.`
+              : '';
+            logger.warn(
+              `⚠️  No API key configured for ${e.provider}. Model is now selected as '${resolved}', but provider setup is incomplete. Run 'qode auth connect ${e.provider}' to set up credentials.${envHint}`
+            );
+            await promptNext(session, rl, config);
+            return;
+          }
+
           session.modelName = prevModel;
           const errMsg = e instanceof Error ? e.message : String(e);
-          if (e instanceof MissingApiKeyError) {
-            logger.warn(`⚠️  No API key configured for ${e.provider}. Some providers also work with /auth connect ${e.provider} or by setting the matching environment variable.`);
-          } else {
-            logger.warn(`⚠️  Model switch failed: ${errMsg}`);
-          }
+          logger.warn(`⚠️  Model switch failed: ${errMsg}`);
           await promptNext(session, rl, config);
           return;
         }

@@ -6,6 +6,7 @@ export const GoogleAuthProvider: AuthProvider = {
   name: 'Google AI Studio',
   type: 'api-key',
   description: 'Google AI Studio API key (get from aistudio.google.com)',
+  apiKeyEnv: 'GOOGLE_API_KEY',
 
   async setupApiKey(): Promise<string> {
     const apiKey = await password({
@@ -16,7 +17,6 @@ export const GoogleAuthProvider: AuthProvider = {
   },
 
   async validateCredentials(tokens: AuthTokens): Promise<boolean> {
-    // For API keys, validation is done by making a test request
     return !!tokens.accessToken;
   },
 };
@@ -26,6 +26,7 @@ export const OpenAIAuthProvider: AuthProvider = {
   name: 'OpenAI',
   type: 'api-key',
   description: 'OpenAI API key (get from platform.openai.com)',
+  apiKeyEnv: 'OPENAI_API_KEY',
 
   async setupApiKey(): Promise<string> {
     const apiKey = await password({
@@ -55,6 +56,7 @@ export const AnthropicAuthProvider: AuthProvider = {
   name: 'Anthropic',
   type: 'api-key',
   description: 'Anthropic API key (for Claude)',
+  apiKeyEnv: 'ANTHROPIC_API_KEY',
 
   async setupApiKey(): Promise<string> {
     const apiKey = await password({
@@ -80,8 +82,7 @@ export const AnthropicAuthProvider: AuthProvider = {
           messages: [{ role: 'user', content: 'hi' }],
         }),
       });
-      // 200 = valid key, 401 = invalid
-      return response.ok || response.status === 400; // 400 = valid key but bad request
+      return response.ok || response.status === 400;
     } catch {
       return false;
     }

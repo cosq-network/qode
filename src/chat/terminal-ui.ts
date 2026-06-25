@@ -1097,12 +1097,9 @@ export class TerminalChatUI {
         this.acceptHistorySearch();
         return;
       }
-      this.refreshCompletionState();
-      if (this.suggestions.length > 1) {
+      if (this.completionState && this.suggestions.length >= 1) {
         this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
-        this.applySuggestion(this.getSelectedSuggestion());
-      } else if (this.suggestions.length === 1) {
-        this.applySuggestion(this.getSelectedSuggestion());
+        this.queueRender();
       }
     });
     this.screenKeyBindings.push({ key: 'tab', handler: () => {} });
@@ -1311,7 +1308,7 @@ export class TerminalChatUI {
       ? this.suggestionResolver(this.inputValue, this.cursor)
       : null;
     this.suggestions = this.completionState?.suggestions ?? [];
-    this.suggestionIndex = 0;
+    this.suggestionIndex = Math.min(this.suggestionIndex, Math.max(this.suggestions.length - 1, 0));
     this.historySearchActive = false;
     this.queueRender();
   }

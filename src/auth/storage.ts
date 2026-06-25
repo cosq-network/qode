@@ -36,6 +36,7 @@ export interface AuthProvider {
   name: string;
   type: AuthType;
   description: string;
+  apiKeyEnv?: string;
 
   // For API key
   setupApiKey?(): Promise<string>;
