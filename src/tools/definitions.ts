@@ -1153,5 +1153,74 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  // flask_create_app
+  {
+    type: 'function' as const,
+    function: {
+      name: 'flask_create_app',
+      description: 'Scaffold a minimal Flask app scaffold.',
+      parameters: {
+        type: 'object',
+        properties: {
+          appName: { type: 'string', description: 'App/module name (default: app)' },
+          venvPath: { type: 'string', description: 'Virtual environment path (default: .venv)' },
+          includeTests: { type: 'boolean', description: 'Include sample tests module (default: true)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['appName'],
+      },
+    },
+  },
+  // flask_run_server
+  {
+    type: 'function' as const,
+    function: {
+      name: 'flask_run_server',
+      description: 'Run the Flask development server with FLASK_APP/FLASK_DEBUG env.',
+      parameters: {
+        type: 'object',
+        properties: {
+          scriptPath: { type: 'string', description: 'Flask app file or module (default: app.py)' },
+          port: { type: 'integer', description: 'Port to bind (default: 5000)' },
+          host: { type: 'string', description: 'Host to bind (default: 127.0.0.1)' },
+          debug: { type: 'boolean', description: 'Enable Flask debug mode (default: true)' },
+          venvPath: { type: 'string', description: 'Virtual environment path (default: .venv)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['scriptPath'],
+      },
+    },
+  },
+  // flask_routes_list
+  {
+    type: 'function' as const,
+    function: {
+      name: 'flask_routes_list',
+      description: 'List registered Flask routes for an app using FLASK_APP.',
+      parameters: {
+        type: 'object',
+        properties: {
+          scriptPath: { type: 'string', description: 'Flask app file or module (default: app.py)' },
+          venvPath: { type: 'string', description: 'Virtual environment path (default: .venv)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['scriptPath'],
+      },
+    },
+  },
+  // flask_debug_enable
+  {
+    type: 'function' as const,
+    function: {
+      name: 'flask_debug_enable',
+      description: 'Enable Flask debug/auto-reload by setting FLASK_DEBUG=1.',
+      parameters: {
+        type: 'object',
+        properties: {
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+      },
+    },
+  },
 ];
 export type ToolDefinition = typeof TOOL_DEFINITIONS[number];

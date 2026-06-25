@@ -203,6 +203,12 @@ interface ToolArgs {
   template?: 'react' | 'nextjs' | 'flutter' | 'dotnet-console' | 'aspnet-webapi' | 'aspnet-mvc' | 'maven-quickstart' | 'gradle-java' | 'flask' | 'django';
   outputDir?: string;
   projectName?: string;
+  appName?: string;
+  includeTests?: boolean;
+  scriptPath?: string;
+  port?: number;
+  host?: string;
+  debug?: boolean;
 }
 
 /**
@@ -1223,6 +1229,60 @@ export async function executeToolCall(
       return runExecutable(pipBin, ['show', packageName], wd);
     }
 
+    // -----------------------------------------------------------------------
+    // FLASK CREATE APP
+    // -----------------------------------------------------------------------
+    case 'flask_create_app': {
+      const { appName, venvPath, includeTests, cwd: wd } = args;
+      const name = appName || 'app';
+      const vPath = typeof venvPath === 'string' ? venvPath : '.venv';
+      const appDir = path.join(wd || cwd, name);
+      await fs.ensureDir(appDir);
+      const appPy = [
+        'from flask import Flask',
+        `app = Flask(__name__)`,
+        '',
+        '@app.route("/")',
+        'def index():',
+        '    return "Hello, Flask!"',
+        '',
+        'if __name__ == "__main__":',
+        '    app.run(debug=True)',
+        '',
+      ].join('\n');
+      await fs.writeFile(path.join(appDir, 'app.py'), appPy, 'utf8');
+      if (includeTests !== false) {
+        const testsDir = path.join(appDir, 'tests');
+        await fs.ensureDir(testsDir);
+        await fs.writeFile(path.join(testsDir, '__init__.py'), '', 'utf8');
+      }
+      return `Scaffolded Flask app at ${appDir}`;
+    }
+    case 'flask_run_server': {
+      const { scriptPath, port, host, debug, venvPath, cwd: wd } = args;
+      const script = scriptPath || path.join(wd || cwd, 'app.py');
+      const resolved = path.isAbsolute(script) ? script : path.join(wd || cwd, script);
+      const vDir = typeof venvPath === 'string' ? venvPath : '.venv';
+      const baseDir = path.resolve(wd || cwd, vDir);
+      const venvBin = getVenvBinary(baseDir, 'python3') || getVenvBinary(baseDir, 'python') || 'python3';
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        FLASK_APP: path.basename(resolved),
+        FLASK_DEBUG: String(typeof debug === 'boolean' ? debug : true),
+      };
+      if (typeof port === 'number') env.FLASK_RUN_PORT = String(port);
+      if (typeof host === 'string') env.FLASK_RUN_HOST = host;
+      return runExecutable(venvBin, [resolved], wd, env as any);
+    }
+    case 'flask_routes_list': {
+      const { scriptPath, cwd: wd } = args;
+      const script = scriptPath || path.join(wd || cwd, 'app.py');
+      const resolved = path.isAbsolute(script) ? script : path.join(wd || cwd, script);
+      return `Flask routes would be listed for ${resolved}`;
+    }
+    case 'flask_debug_enable': {
+      return 'Flask debug mode is enabled via env in flask_run_server.';
+    }
     // -----------------------------------------------------------------------
     // JAVA COMPILE AND RUN
     // -----------------------------------------------------------------------

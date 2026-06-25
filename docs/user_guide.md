@@ -92,8 +92,10 @@ Enter slash commands directly into the prompt to manage your sessions, settings,
 | :--- | :--- | :--- |
 | `/help` | `/help` | Lists all supported commands and describes their options. |
 | `/model` | `/model <model-name>` | Switch current model in the middle of a chat turn. |
+| `/models` | `/models` | List available providers and models. |
 | `/review` | `/review <file1> [file2 ...]` | Load file contents and request a detailed AI code review. |
 | `/suggest` | `/suggest <description>` | Request code implementation templates or templates. |
+| `/search` | `/search [--rebuild] <query>` | Semantic search across codebase. |
 | `/compress` | `/compress` | Manually compress oldest message history. |
 | `/clear` | `/clear` | Wipes the current message history but retains system prompts. |
 | `/sessions` | `/sessions` | Lists all saved sessions, including dates and counts. |
@@ -105,6 +107,36 @@ Enter slash commands directly into the prompt to manage your sessions, settings,
 | `/paste` | `/paste` | Pastes clipboard content directly as your prompt. |
 | `/cancel` | `/cancel` | Cancels current multiline input accumulation. |
 | `/exit` | `/exit` | Saves the session and cleanly exits the CLI app. |
+
+### Agent Behavior & Permissions
+
+```text
+/mode [plan|build]           Switch agent mode or show current mode
+/plan [show|clear|export]    Manage the active plan
+/permissions [cmd]           View/set tool permissions
+/allow-all                   Allow all tools for this session
+/deny-all                    Disable permission bypass
+```
+
+### Review & Generation
+
+```text
+/review <file...>            Review one or more files
+/suggest <description>       Generate a code suggestion
+/search [--rebuild] <query>  Semantic search across codebase
+/task <subagent> <prompt>    Delegate task to a subagent
+@<subagent> <prompt>         Delegate via mention (e.g. @explore <task>)
+!<command>                   Execute a shell command inline
+```
+
+### Auth & Config
+
+```text
+/set-key <provider> <key>    Set an API key for a provider
+/clear-key <provider>        Remove a stored API key for a provider
+/download-status             Check background model download progress
+/update-models               Fetch latest model lists from provider APIs
+```
 
 ---
 

@@ -1097,9 +1097,8 @@ export class TerminalChatUI {
         this.acceptHistorySearch();
         return;
       }
-      if (this.completionState && this.suggestions.length >= 1) {
-        this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
-        this.queueRender();
+      if (this.completionState && this.suggestions.length >= 1 && this.suggestionIndex >= 0) {
+        this.applySuggestion(this.getSelectedSuggestion());
       }
     });
     this.screenKeyBindings.push({ key: 'tab', handler: () => {} });

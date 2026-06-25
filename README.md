@@ -273,6 +273,7 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 /model <model>               Switch the active model
 /model                       List available models
 /models                      List available providers and models
+/search [--rebuild] <query>  Semantic search across codebase
 /compress [--keep N]         Force context compression
 /clear                       Clear conversation (keep system)
 /save                        Save the current session
@@ -295,10 +296,17 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 ```text
 /review <file...>            Review one or more files
 /suggest <description>       Generate a code suggestion
-/search [--rebuild] <query>  Semantic search across codebase
 /task <subagent> <prompt>    Delegate task to a subagent
 @<subagent> <prompt>         Delegate via mention (e.g. @explore <task>)
+/@read <file_path>           Read a file into the chat output
 !<command>                   Execute a shell command inline
+```
+
+### Auth & Config
+
+```text
+/set-key <provider> <key>    Set an API key for a provider
+/clear-key <provider>        Remove a stored API key for a provider
 ```
 
 ### Skills & Models

@@ -1,0 +1,25 @@
+# Skills Reference
+
+This directory documents each bundled skill in Qode.
+
+- [browser](browser.md)
+- [clang](clang.md)
+- [cmake](cmake.md)
+- [dotnet](dotnet.md)
+- [flask](flask.md)
+- [flutter](flutter.md)
+- [gcc](gcc.md)
+- [git-workflows](git-workflows.md)
+- [grep](grep.md)
+- [java](java.md)
+- [make](make.md)
+- [native-build](native-build.md)
+- [node](node.md)
+- [npm](npm.md)
+- [package-management](package-management.md)
+- [pip](pip.md)
+- [python3](python3.md)
+- [remote-management](remote-management.md)
+- [ssh](ssh.md)
+- [terminal](terminal.md)
+- [tsc](tsc.md)
