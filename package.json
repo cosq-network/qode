@@ -1,6 +1,6 @@
 {
   "name": "@cosq-network/qode",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "type": "module",
   "author": "Benoy Bose <benoybose@cosq.net> (COSQ Network Private Limited)",
   "description": "Multi-provider coding agent CLI with tool use, context compression, and session resume",
@@ -12,11 +12,17 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "build": "tsc && node scripts/copy-assets.mjs",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
     "start": "node dist/index.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "prepublishOnly": "npm run build",
+    "test:ci": "jest -c jest.config.cjs --watchman=false",
+    "package:check": "node scripts/check-package.mjs",
+    "smoke:cli": "node scripts/smoke-cli.mjs",
+    "smoke:install": "node scripts/smoke-packed-install.mjs",
+    "verify:production": "npm run build && npm run lint && npm run test:ci && npm run package:check && npm run smoke:cli",
+    "verify:release": "npm run verify:production && npm run smoke:install",
+    "prepublishOnly": "npm run verify:production",
     "test": "jest -c jest.config.cjs"
   },
   "dependencies": {
@@ -55,6 +61,7 @@
     "node": ">=18"
   },
   "files": [
-    "dist/"
+    "dist/",
+    "CHANGELOG.md"
   ]
 }
