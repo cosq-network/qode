@@ -11,13 +11,10 @@ const gitCommand: RegisteredTool = {
       parameters: {
         type: 'object',
         properties: {
-          gitArgs: {
-            type: 'string',
-            description: 'Arguments for git, without the "git" prefix',
-          },
+          command: { type: 'string', description: 'Arguments for git, without the "git" prefix' },
           cwd: { type: 'string', description: 'Working directory (optional)' },
         },
-        required: ['gitArgs'],
+        required: ['command'],
       },
     },
   },
@@ -36,8 +33,7 @@ const gitStatus: RegisteredTool = {
     type: 'function' as const,
     function: {
       name: 'git_status',
-      description:
-        'Get a clean, structured status of the repository (modified, untracked, deleted files).',
+      description: 'Get a clean, structured status of the repository (modified, untracked, deleted files).',
       parameters: {
         type: 'object',
         properties: {
@@ -59,24 +55,13 @@ const gitDiff: RegisteredTool = {
     type: 'function' as const,
     function: {
       name: 'git_diff',
-      description:
-        'Retrieve the diff of unstaged changes (or changes between commits/branches).',
+      description: 'Retrieve the diff of unstaged changes (or changes between commits/branches).',
       parameters: {
         type: 'object',
         properties: {
-          filePath: {
-            type: 'string',
-            description: 'Limit diff to a specific file (optional)',
-          },
-          staged: {
-            type: 'boolean',
-            description: 'Show staged changes instead (optional)',
-          },
-          compareWith: {
-            type: 'string',
-            description:
-              'Compare with a specific commit or branch, e.g., HEAD~1 or main (optional)',
-          },
+          filePath: { type: 'string', description: 'Limit diff to a specific file (optional)' },
+          staged: { type: 'boolean', description: 'Show staged changes instead (optional)' },
+          compareWith: { type: 'string', description: 'Compare with a specific commit or branch, e.g., HEAD~1 or main (optional)' },
           cwd: { type: 'string', description: 'Working directory (optional)' },
         },
       },
@@ -104,14 +89,8 @@ const gitLog: RegisteredTool = {
       parameters: {
         type: 'object',
         properties: {
-          limit: {
-            type: 'integer',
-            description: 'Maximum number of commits to return (default: 10)',
-          },
-          filePath: {
-            type: 'string',
-            description: 'Filter commits affecting a specific file (optional)',
-          },
+          limit: { type: 'integer', description: 'Maximum number of commits to return (default: 10)' },
+          filePath: { type: 'string', description: 'Filter commits affecting a specific file (optional)' },
           cwd: { type: 'string', description: 'Working directory (optional)' },
         },
       },
@@ -139,14 +118,8 @@ const gitBlame: RegisteredTool = {
         type: 'object',
         properties: {
           filePath: { type: 'string', description: 'The file path to blame' },
-          startLine: {
-            type: 'integer',
-            description: 'Start line number (optional, 1-indexed)',
-          },
-          endLine: {
-            type: 'integer',
-            description: 'End line number (optional, 1-indexed)',
-          },
+          startLine: { type: 'integer', description: 'Start line number (optional, 1-indexed)' },
+          endLine: { type: 'integer', description: 'End line number (optional, 1-indexed)' },
           cwd: { type: 'string', description: 'Working directory (optional)' },
         },
         required: ['filePath'],
@@ -158,11 +131,8 @@ const gitBlame: RegisteredTool = {
     const { filePath, startLine, endLine, cwd: wd } = args;
     if (!filePath) return { output: '', error: 'filePath is required for git_blame.' };
     const gitArgs = ['blame'];
-    if (startLine !== undefined && endLine !== undefined) {
-      gitArgs.push('-L', `${startLine},${endLine}`);
-    } else if (startLine !== undefined) {
-      gitArgs.push('-L', `${startLine},`);
-    }
+    if (startLine !== undefined && endLine !== undefined) gitArgs.push('-L', `${startLine},${endLine}`);
+    else if (startLine !== undefined) gitArgs.push('-L', `${startLine},`);
     gitArgs.push(filePath as string);
     const result = await runGit(gitArgs, wd as string | undefined);
     if (result.startsWith('Git error:')) return { output: '', error: result.slice(10) };
@@ -175,21 +145,18 @@ const gitDiscardChanges: RegisteredTool = {
     type: 'function' as const,
     function: {
       name: 'git_discard_changes',
-      description:
-        'Discard unstaged changes in one or more files, or the entire repository.',
+      description: 'Discard unstaged changes in one or more files, or the entire repository.',
       parameters: {
         type: 'object',
         properties: {
           paths: {
             type: 'array',
             items: { type: 'string' },
-            description:
-              'Paths of files to restore to their last committed state',
+            description: 'Paths of files to restore to their last committed state',
           },
           discardAllUnstaged: {
             type: 'boolean',
-            description:
-              'Discard all unstaged changes in the repository (default: false)',
+            description: 'Discard all unstaged changes in the repository (default: false)',
           },
           cwd: { type: 'string', description: 'Working directory (optional)' },
         },
@@ -203,13 +170,13 @@ const gitDiscardChanges: RegisteredTool = {
       const result = await runGit(['restore', '.'], wd as string | undefined);
       if (result.startsWith('Git error:')) return { output: '', error: result.slice(10) };
       return { output: result };
-    } else if (paths && (paths as string[]).length > 0) {
+    }
+    if (paths && (paths as string[]).length > 0) {
       const result = await runGit(['restore', ...(paths as string[])], wd as string | undefined);
       if (result.startsWith('Git error:')) return { output: '', error: result.slice(10) };
       return { output: result };
-    } else {
-      return { output: '', error: 'either paths or discardAllUnstaged must be specified.' };
     }
+    return { output: '', error: 'either paths or discardAllUnstaged must be specified.' };
   },
 };
 
@@ -225,13 +192,11 @@ const gitManageBranch: RegisteredTool = {
           action: {
             type: 'string',
             enum: ['list', 'create', 'checkout', 'delete'],
-            description:
-              'Action to perform: list, create, checkout, or delete',
+            description: 'Action to perform: list, create, checkout, or delete',
           },
           branchName: {
             type: 'string',
-            description:
-              'Name of the branch to create, switch to, or delete (optional)',
+            description: 'Name of the branch to create, switch to, or delete (optional)',
           },
           baseBranch: {
             type: 'string',
@@ -288,13 +253,11 @@ const gitCommit: RegisteredTool = {
           paths: {
             type: 'array',
             items: { type: 'string' },
-            description:
-              'Optional list of files to stage first. If omitted and stageAll is false, commits already-staged files.',
+            description: 'Optional list of files to stage first. If omitted and stageAll is false, commits already-staged files.',
           },
           stageAll: {
             type: 'boolean',
-            description:
-              'Stage all modified files before committing (default: false)',
+            description: 'Stage all modified files before committing (default: false)',
           },
           cwd: { type: 'string', description: 'Working directory (optional)' },
         },
@@ -321,7 +284,152 @@ const gitCommit: RegisteredTool = {
   },
 };
 
-/** Register all git tools. */
+const gitClone: RegisteredTool = {
+  definition: {
+    type: 'function' as const,
+    function: {
+      name: 'git_clone',
+      description: 'Clone a repository into a directory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'Repository URL to clone' },
+          directory: { type: 'string', description: 'Target directory path (optional)' },
+          branch: { type: 'string', description: 'Branch to clone (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  metadata: { category: 'git', permissionKey: 'bash' },
+  execute: async (args) => {
+    const { url, directory, branch, cwd: wd } = args;
+    if (!url) return { output: '', error: 'url is required for git_clone.' };
+    const gitArgs = ['clone'];
+    if (branch) gitArgs.push('--branch', branch as string);
+    gitArgs.push(url as string);
+    if (directory) gitArgs.push(directory as string);
+    const result = await runGit(gitArgs, wd as string | undefined);
+    if (result.startsWith('Git error:')) return { output: '', error: result.slice(10) };
+    return { output: result };
+  },
+};
+
+const gitManageTag: RegisteredTool = {
+  definition: {
+    type: 'function' as const,
+    function: {
+      name: 'git_manage_tag',
+      description: 'Create, list, or delete git tags.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['create', 'list', 'delete'],
+            description: 'Tag action to perform',
+          },
+          tagName: { type: 'string', description: 'Tag name for create/delete (optional)' },
+          message: { type: 'string', description: 'Annotation message for annotated tag (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  metadata: { category: 'git', permissionKey: 'bash' },
+  execute: async (args) => {
+    const { action, tagName, message, cwd: wd } = args;
+    if (!action) return { output: '', error: 'action is required for git_manage_tag.' };
+
+    if (action === 'list') {
+      const result = await runGit(['tag', '-l', '--sort=version:refname'], wd as string | undefined);
+      if (result.startsWith('Git error:')) return { output: '', error: result.slice(10) };
+      return { output: result };
+    }
+    if (!tagName) return { output: '', error: 'tagName is required for create/delete tag actions.' };
+
+    if (action === 'create') {
+      const gitArgs = ['tag', tagName as string];
+      if (message) gitArgs.push('-a', '-m', message as string);
+      const result = await runGit(gitArgs, wd as string | undefined);
+      if (result.startsWith('Git error:')) return { output: '', error: result.slice(10) };
+      return { output: result };
+    }
+    if (action === 'delete') {
+      const result = await runGit(['tag', '-d', tagName as string], wd as string | undefined);
+      if (result.startsWith('Git error:')) return { output: '', error: result.slice(10) };
+      return { output: result };
+    }
+    return { output: '', error: `invalid tag action "${action}".` };
+  },
+};
+
+const gitMerge: RegisteredTool = {
+  definition: {
+    type: 'function' as const,
+    function: {
+      name: 'git_merge',
+      description: 'Merge a branch into the current branch.',
+      parameters: {
+        type: 'object',
+        properties: {
+          branch: { type: 'string', description: 'Branch to merge into current branch' },
+          noFF: { type: 'boolean', description: 'Create a merge commit even when fast-forward is possible (default: false)' },
+          noCommit: { type: 'boolean', description: 'Do not auto-commit the merge; just stage/apply changes (default: false)' },
+          message: { type: 'string', description: 'Custom merge commit message (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['branch'],
+      },
+    },
+  },
+  metadata: { category: 'git', permissionKey: 'bash', requiresConfirmation: true },
+  execute: async (args) => {
+    const { branch, noFF, noCommit, message, cwd: wd } = args;
+    if (!branch) return { output: '', error: 'branch is required for git_merge.' };
+    const gitArgs = ['merge'];
+    if (noFF) gitArgs.push('--no-ff');
+    if (noCommit) gitArgs.push('--no-commit');
+    if (message) gitArgs.push('-m', message as string);
+    gitArgs.push(branch as string);
+    const result = await runGit(gitArgs, wd as string | undefined);
+    if (result.startsWith('Git error:')) return { output: '', error: result.slice(10) };
+    return { output: result };
+  },
+};
+
+const gitCherryPick: RegisteredTool = {
+  definition: {
+    type: 'function' as const,
+    function: {
+      name: 'git_cherry_pick',
+      description: 'Apply changes from an existing commit onto the current branch.',
+      parameters: {
+        type: 'object',
+        properties: {
+          commit: { type: 'string', description: 'Commit SHA or ref to cherry-pick' },
+          noCommit: { type: 'boolean', description: 'Apply changes without creating a commit (default: false)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['commit'],
+      },
+    },
+  },
+  metadata: { category: 'git', permissionKey: 'bash', requiresConfirmation: true },
+  execute: async (args) => {
+    const { commit, noCommit, cwd: wd } = args;
+    if (!commit) return { output: '', error: 'commit is required for git_cherry_pick.' };
+    const gitArgs = ['cherry-pick'];
+    if (noCommit) gitArgs.push('--no-commit');
+    gitArgs.push(commit as string);
+    const result = await runGit(gitArgs, wd as string | undefined);
+    if (result.startsWith('Git error:')) return { output: '', error: result.slice(10) };
+    return { output: result };
+  },
+};
+
 export function registerGitTools(): void {
   globalRegistry.register(gitCommand);
   globalRegistry.register(gitStatus);
@@ -331,4 +439,8 @@ export function registerGitTools(): void {
   globalRegistry.register(gitDiscardChanges);
   globalRegistry.register(gitManageBranch);
   globalRegistry.register(gitCommit);
+  globalRegistry.register(gitClone);
+  globalRegistry.register(gitManageTag);
+  globalRegistry.register(gitMerge);
+  globalRegistry.register(gitCherryPick);
 }

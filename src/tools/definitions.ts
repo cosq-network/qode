@@ -194,10 +194,10 @@ export const TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: {
-          gitArgs: { type: 'string', description: 'Arguments for git, without the "git" prefix' },
+          command: { type: 'string', description: 'Arguments for git, without the "git" prefix' },
           cwd: { type: 'string', description: 'Working directory (optional)' },
         },
-        required: ['gitArgs'],
+        required: ['command'],
       },
     },
   },
@@ -366,6 +366,87 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+
+  // git_clone
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_clone',
+      description: 'Clone a repository into a directory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'Repository URL to clone' },
+          directory: { type: 'string', description: 'Target directory path (optional)' },
+          branch: { type: 'string', description: 'Branch to clone (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+
+  // git_manage_tag
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_manage_tag',
+      description: 'Create, list, or delete git tags.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['create', 'list', 'delete'],
+            description: 'Tag action to perform',
+          },
+          tagName: { type: 'string', description: 'Tag name for create/delete (optional)' },
+          message: { type: 'string', description: 'Annotation message for annotated tag (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+
+  // git_merge
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_merge',
+      description: 'Merge a branch into the current branch.',
+      parameters: {
+        type: 'object',
+        properties: {
+          branch: { type: 'string', description: 'Branch to merge into current branch' },
+          noFF: { type: 'boolean', description: 'Create a merge commit even when fast-forward is possible (default: false)' },
+          noCommit: { type: 'boolean', description: 'Do not auto-commit the merge; just stage/apply changes (default: false)' },
+          message: { type: 'string', description: 'Custom merge commit message (optional)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['branch'],
+      },
+    },
+  },
+
+  // git_cherry_pick
+  {
+    type: 'function' as const,
+    function: {
+      name: 'git_cherry_pick',
+      description: 'Apply changes from an existing commit onto the current branch.',
+      parameters: {
+        type: 'object',
+        properties: {
+          commit: { type: 'string', description: 'Commit SHA or ref to cherry-pick' },
+          noCommit: { type: 'boolean', description: 'Apply changes without creating a commit (default: false)' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['commit'],
+      },
+    },
+  },
+
   // npm_list_dependencies
   {
     type: 'function' as const,
@@ -1013,6 +1094,62 @@ export const TOOL_DEFINITIONS = [
           },
         },
         required: ['query'],
+      },
+    },
+  },
+  // ssh_command
+  {
+    type: 'function' as const,
+    function: {
+      name: 'ssh_command',
+      description: 'Run an SSH command on a remote host.',
+      parameters: {
+        type: 'object',
+        properties: {
+          destination: { type: 'string', description: 'Remote target, e.g. user@host' },
+          command: { type: 'string', description: 'Remote command to execute' },
+          pty: { type: 'boolean', description: 'Request pseudo-tty when possible' },
+          extraArgs: { type: 'array', items: { type: 'string' }, description: 'Extra SSH flags' },
+          timeoutMs: { type: 'integer', description: 'Command timeout in milliseconds' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['destination', 'command'],
+      },
+    },
+  },
+  // scp_command
+  {
+    type: 'function' as const,
+    function: {
+      name: 'scp_command',
+      description: 'Copy files or directories over SSH using SCP.',
+      parameters: {
+        type: 'object',
+        properties: {
+          source: { type: 'string', description: 'Source path (can be remote)' },
+          destination: { type: 'string', description: 'Destination path (can be remote)' },
+          recursive: { type: 'boolean', description: 'Recursive directory copy' },
+          extraArgs: { type: 'array', items: { type: 'string' }, description: 'Extra SCP flags' },
+          cwd: { type: 'string', description: 'Working directory (optional)' },
+        },
+        required: ['source', 'destination'],
+      },
+    },
+  },
+  // ssh_known_hosts
+  {
+    type: 'function' as const,
+    function: {
+      name: 'ssh_known_hosts',
+      description: 'Inspect or edit SSH known_hosts entries.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['list', 'search', 'remove'] },
+          path: { type: 'string', description: 'Explicit known_hosts path' },
+          host: { type: 'string', description: 'Host or host:port pattern' },
+        },
+        required: ['action'],
       },
     },
   },

@@ -503,14 +503,14 @@ export async function executeToolCall(
     // GIT COMMAND
     // -----------------------------------------------------------------------
     case 'git_command': {
-      const { gitArgs, cwd: wd } = args;
-      if (!gitArgs) return 'Error: gitArgs required (e.g., "status", "log --oneline").';
-      // Security: Validate gitArgs doesn't contain dangerous patterns
-      const gitBlocked = containsDangerousPatterns(`git ${gitArgs}`);
+      const { command, cwd: wd } = args;
+      if (!command) return 'Error: command required for git_command (e.g., "status", "log --oneline").';
+      const gitArgsArray = (command as string).split(/\s+/);
+      const gitBlocked = containsDangerousPatterns(`git ${gitArgsArray}`);
       if (gitBlocked) {
         return `Error: Command blocked by security policy. Pattern "${gitBlocked}" is not allowed.`;
       }
-      const cmd = `git ${gitArgs}`;
+      const cmd = `git ${gitArgsArray}`;
       return new Promise((resolve) => {
         exec(
           cmd,

@@ -1,4 +1,3 @@
-// src/utils/skills.ts
 import fs from 'fs-extra';
 import path from 'path';
 import { getQodeSubdir } from './app-paths.js';
@@ -49,6 +48,7 @@ export async function loadSkills(workspaceCwd: string): Promise<Skill[]> {
   const skills: Skill[] = [];
   const globalSkillsDir = getQodeSubdir('skills');
   const workspaceSkillsDir = path.join(workspaceCwd, '.agents', 'skills');
+  const bundledSkillsDir = path.resolve(__dirname, '..', 'skills');
   
   const scanDir = async (dir: string) => {
     if (!(await fs.pathExists(dir))) return;
@@ -81,8 +81,9 @@ export async function loadSkills(workspaceCwd: string): Promise<Skill[]> {
   
   await scanDir(globalSkillsDir);
   await scanDir(workspaceSkillsDir);
+  await scanDir(bundledSkillsDir);
   
-  // Return unique skills by name (workspace overrides global)
+  // Return unique skills by name (workspace overrides global; bundled acts as default)
   const uniqueSkills: Record<string, Skill> = {};
   skills.forEach(skill => {
     uniqueSkills[skill.name.toLowerCase()] = skill;

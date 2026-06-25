@@ -51,17 +51,22 @@ body content`;
   });
 
   describe('loadSkills', () => {
-    test('loads skills from global and workspace directories', async () => {
+    test('loads skills from global, workspace, and bundled directories', async () => {
       const globalDir = path.join(os.homedir(), '.qode', 'skills');
       const workspaceCwd = '/workspace';
       const localDir = path.join(workspaceCwd, '.agents', 'skills');
+      const bundledDir = path.resolve(__dirname, '..', 'skills');
 
-      // Mock paths existence
       (mockedFs.pathExists as any).mockImplementation(async (p: string) => {
-        return p === globalDir || p === localDir || p.endsWith('SKILL.md');
+        return (
+          p === globalDir ||
+          p === localDir ||
+          p === bundledDir ||
+          (p.includes(path.join(bundledDir, 'bundled-skill-1')) && p.endsWith('SKILL.md')) ||
+          p.endsWith('SKILL.md')
+        );
       });
 
-      // Mock readdir
       (mockedFs.readdir as any).mockImplementation(async (p: string) => {
         if (p === globalDir) {
           return [
@@ -73,10 +78,14 @@ body content`;
             { name: 'local-skill-1', isDirectory: () => true },
           ] as any;
         }
+        if (p === bundledDir) {
+          return [
+            { name: 'bundled-skill-1', isDirectory: () => true },
+          ] as any;
+        }
         return [];
       });
 
-      // Mock readFile
       (mockedFs.readFile as any).mockImplementation(async (p: string) => {
         if (p.includes('global-skill-1')) {
           return `---
@@ -94,76 +103,88 @@ tags: [local, tag2]
 ---
 local instructions`;
         }
+        if (p.includes('bundled-skill-1')) {
+          return `---
+name: Bundled Skill 1
+description: "Bundled helper"
+tags: [bundled, tag3]
+---
+bundled instructions`;
+        }
         throw new Error('Not found');
       });
 
       const skills = await loadSkills(workspaceCwd);
-      expect(skills).toHaveLength(2);
+      expect(skills).toHaveLength(3);
       
       const globalSkill = skills.find(s => s.name === 'Global Skill 1');
       expect(globalSkill).toBeDefined();
       expect(globalSkill?.tags).toEqual(['global', 'tag1']);
       expect(globalSkill?.instructions).toBe('global instructions');
 
-      const localSkill = skills.find(s => s.name === 'Local Skill 1');
-      expect(localSkill).toBeDefined();
-      expect(localSkill?.tags).toEqual(['local', 'tag2']);
-      expect(localSkill?.instructions).toBe('local instructions');
+      const bundledSkill = skills.find(s => s.name === 'Bundled Skill 1');
+      expect(bundledSkill).toBeDefined();
+      expect(bundledSkill?.tags).toEqual(['bundled', 'tag3']);
+      expect(bundledSkill?.instructions).toBe('bundled instructions');
     });
 
-    test('local workspace skill overrides global skill with same name', async () => {
-      const globalDir = path.join(os.homedir(), '.qode', 'skills');
-      const workspaceCwd = '/workspace';
-      const localDir = path.join(workspaceCwd, '.agents', 'skills');
+    test('bundled skills are available even without global or workspace skills', async () => {
+      const workspaceCwd = '/empty-workspace';
+      const bundledDir = path.resolve(__dirname, '..', 'skills');
 
-      (mockedFs.pathExists as any).mockImplementation(async () => true);
+      (mockedFs.pathExists as any).mockImplementation(async (p: string) => {
+        if (p === bundledDir) return true;
+        if (p.includes('bundled-skill-1') && p.endsWith('SKILL.md')) return true;
+        return false;
+      });
 
       (mockedFs.readdir as any).mockImplementation(async (p: string) => {
-        if (p === globalDir) {
-          return [{ name: 'same-name', isDirectory: () => true }] as any;
-        }
-        if (p === localDir) {
-          return [{ name: 'same-name', isDirectory: () => true }] as any;
+        if (p === bundledDir || p.includes(bundledDir)) {
+          return [
+            { name: 'bundled-skill-1', isDirectory: () => true },
+          ] as any;
         }
         return [];
       });
 
       (mockedFs.readFile as any).mockImplementation(async (p: string) => {
-        if (p.includes('global-skill-same-name') || p.includes(path.join(globalDir, 'same-name'))) {
+        if (p.includes('bundled-skill-1')) {
           return `---
-name: Override Me
-description: "Global description"
-tags: [global]
+name: Bundled Default Skill
+description: "Bundled default helper"
+tags: [bundled, default]
 ---
-global body`;
+bundled default instructions`;
         }
-        return `---
-name: Override Me
-description: "Local description"
-tags: [local]
----
-local body`;
+        throw new Error('Not found');
       });
 
       const skills = await loadSkills(workspaceCwd);
       expect(skills).toHaveLength(1);
-      expect(skills[0].description).toBe('Local description');
-      expect(skills[0].tags).toEqual(['local']);
-      expect(skills[0].instructions).toBe('local body');
+      expect(skills[0].name).toBe('Bundled Default Skill');
+      expect(skills[0].description).toBe('Bundled default helper');
+    });
+
+    test('returns empty array when no skill directories exist', async () => {
+      (mockedFs.pathExists as any).mockImplementation(async () => false);
+
+      const skills = await loadSkills('/empty-workspace');
+      expect(skills).toHaveLength(0);
     });
 
     test('ignores files and folders without SKILL.md or with load errors', async () => {
       const workspaceCwd = '/workspace';
+      const bundledDir = path.join('/bundled', 'skills');
       const localDir = path.join(workspaceCwd, '.agents', 'skills');
 
       (mockedFs.pathExists as any).mockImplementation(async (p: string) => {
-        if (p === localDir) return true;
+        if (p === localDir || p === bundledDir) return true;
         if (p.includes('valid-skill') && p.endsWith('SKILL.md')) return true;
         return false;
       });
 
       (mockedFs.readdir as any).mockImplementation(async (p: string) => {
-        if (p === localDir) {
+        if (p === localDir || p === bundledDir) {
           return [
             { name: 'no-skill-md', isDirectory: () => true },
             { name: 'valid-skill', isDirectory: () => true },
@@ -205,6 +226,13 @@ Valid Instructions`;
         tags: ['python', 'flask', 'api'],
         instructions: 'Flask instructions',
         path: '/path/flask',
+      },
+      {
+        name: 'Git Workflows',
+        description: 'Git workflow skill covering clone, checkout, merge, tag, diff, cherry-pick, and log.',
+        tags: ['git', 'version-control', 'workflows'],
+        instructions: 'Git instructions',
+        path: '/path/git-workflows',
       },
     ];
 

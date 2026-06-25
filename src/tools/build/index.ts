@@ -5,7 +5,6 @@ import { runCmake, runCtest, runExecutable, getVenvBinary, getCwd, MAX_BUFFER } 
 import { globalRegistry } from '../registry.js';
 import type { RegisteredTool } from '../registry.js';
 
-// ---------------------------------------------------------------------------
 // Code Quality Tools
 // ---------------------------------------------------------------------------
 
@@ -33,7 +32,7 @@ const runLinter: RegisteredTool = {
     const cmd = `${linter} ${filePath}`;
     const output = await new Promise<string>((resolve) => {
       exec(cmd, { cwd: (wd as string) || getCwd(), maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-        if (err) resolve(`Linter error:\n${stderr || err.message}`);
+        if (err) resolve(`Linter error:\\n${stderr || err.message}`);
         else resolve(stdout || stderr || 'Linter completed with no output.');
       });
     });
@@ -64,7 +63,7 @@ const runTests: RegisteredTool = {
     if (!testCommand) return { output: '', error: 'testCommand required.' };
     const output = await new Promise<string>((resolve) => {
       exec(testCommand as string, { cwd: (wd as string) || getCwd(), maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-        if (err) resolve(`Tests failed:\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`);
+        if (err) resolve(`Tests failed:\\nSTDOUT:\\n${stdout}\\nSTDERR:\\n${stderr}`);
         else resolve(stdout || 'All tests passed.');
       });
     });
@@ -120,7 +119,7 @@ const runFormatter: RegisteredTool = {
     const cmd = `${formatter} ${filePath}`;
     const output = await new Promise<string>((resolve) => {
       exec(cmd, { cwd: (wd as string) || getCwd(), maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-        if (err) resolve(`Formatter error:\n${stderr || err.message}`);
+        if (err) resolve(`Formatter error:\\n${stderr || err.message}`);
         else resolve(stdout || 'File formatted successfully.');
       });
     });
@@ -157,7 +156,7 @@ const installPackage: RegisteredTool = {
     const cmd = `${manager} install ${pkgList}`;
     const output = await new Promise<string>((resolve) => {
       exec(cmd, { cwd: (wd as string) || getCwd(), maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-        if (err) resolve(`Installation failed:\n${stderr || err.message}`);
+        if (err) resolve(`Installation failed:\\n${stderr || err.message}`);
         else resolve(stdout || 'Package(s) installed.');
       });
     });
@@ -290,16 +289,16 @@ const nodeRunFile: RegisteredTool = {
     const cwdDir = getCwd();
     const resolvedPath = path.resolve((wd as string) || cwdDir, filePath as string);
     const argList = (fileArgs as string[]) || [];
-    const escapedArgs = argList.map((a) => `"${a.replace(/(["\\$])/g, '\\$1')}"`).join(' ');
+    const escapedArgs = argList.map((a) => `\"${a.replace(/([\"\\\\$])/g, '\\\\$1')}\"`).join(' ');
     const isTs = (filePath as string).endsWith('.ts') || (filePath as string).endsWith('.tsx');
     const runWithTsx = useTsx !== false && isTs;
     const cmd = runWithTsx
-      ? `npx tsx "${resolvedPath}" ${escapedArgs}`
-      : `node "${resolvedPath}" ${escapedArgs}`;
+      ? `npx tsx \"${resolvedPath}\" ${escapedArgs}`
+      : `node \"${resolvedPath}\" ${escapedArgs}`;
 
     const output = await new Promise<string>((resolve) => {
       exec(cmd, { cwd: (wd as string) || cwdDir, maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-        if (err) resolve(`Execution error:\n${stderr || err.message}\nSTDOUT:\n${stdout}`);
+        if (err) resolve(`Execution error:\\n${stderr || err.message}\\nSTDOUT:\\n${stdout}`);
         else resolve(stdout || stderr || 'Executed successfully with no output.');
       });
     });
@@ -344,7 +343,7 @@ const nodeGetInfo: RegisteredTool = {
         `Yarn: ${yarnVer}`,
         `OS Platform: ${osType}`,
         `OS Architecture: ${osArch}`,
-      ].join('\n'),
+      ].join('\\n'),
     };
   },
 };
@@ -660,7 +659,7 @@ const pythonInstallRequirements: RegisteredTool = {
     }
     const output = await new Promise<string>((resolve) => {
       execFile(pipBin, pipArgs, { cwd: cwdDir, maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-        if (err) resolve(`Pip installation error: ${stderr || err.message}\nSTDOUT:\n${stdout}`);
+        if (err) resolve(`Pip installation error: ${stderr || err.message}\\nSTDOUT:\\n${stdout}`);
         else resolve(stdout || stderr || 'Packages installed successfully.');
       });
     });
@@ -692,7 +691,7 @@ const pythonListPackages: RegisteredTool = {
     const pipBin = getVenvBinary(path.resolve(cwdDir, vPath), 'pip');
     const output = await new Promise<string>((resolve) => {
       execFile(pipBin, ['list'], { cwd: cwdDir, maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-        if (err) resolve(`Pip list error: ${stderr || err.message}\nSTDOUT:\n${stdout}`);
+        if (err) resolve(`Pip list error: ${stderr || err.message}\\nSTDOUT:\\n${stdout}`);
         else resolve(stdout || stderr || 'No packages found.');
       });
     });
@@ -729,7 +728,7 @@ const pythonRunFile: RegisteredTool = {
     const fileArgs = (pyArgs as string[]) || [];
     const output = await new Promise<string>((resolve) => {
       execFile(pythonBin, [filePath as string, ...fileArgs], { cwd: cwdDir, maxBuffer: MAX_BUFFER }, (err, stdout, stderr) => {
-        if (err) resolve(`Python execution error: ${stderr || err.message}\nSTDOUT:\n${stdout}`);
+        if (err) resolve(`Python execution error: ${stderr || err.message}\\nSTDOUT:\\n${stdout}`);
         else resolve(stdout || stderr || 'Success');
       });
     });
@@ -837,11 +836,11 @@ const javaProjectBuild: RegisteredTool = {
     const { system, target, cwd: wd } = args;
     if (!system) return { output: '', error: 'system is required for java_project_build.' };
     if (system === 'maven') {
-      const t = ((target as string) || 'clean install').trim().split(/\s+/);
+      const t = ((target as string) || 'clean install').trim().split(/\\s+/);
       const result = await runExecutable('mvn', t, wd as string | undefined);
       return { output: result };
     } else if (system === 'gradle') {
-      const t = ((target as string) || 'build').trim().split(/\s+/);
+      const t = ((target as string) || 'build').trim().split(/\\s+/);
       const cwdDir = (wd as string) || getCwd();
       const isWin = process.platform === 'win32';
       const localWrapper = isWin ? 'gradlew.bat' : 'gradlew';
@@ -977,9 +976,9 @@ const createProject: RegisteredTool = {
           '',
           'if __name__ == "__main__":',
           '    app.run(debug=True)',
-        ].join('\n');
+        ].join('\\n');
         await fs.writeFile(path.join(targetDir, 'app.py'), appPy, 'utf8');
-        await fs.writeFile(path.join(targetDir, 'requirements.txt'), 'flask\n', 'utf8');
+        await fs.writeFile(path.join(targetDir, 'requirements.txt'), 'flask\\n', 'utf8');
         return { output: `Flask project "${projectName}" successfully scaffolded at ${targetDir}` };
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);

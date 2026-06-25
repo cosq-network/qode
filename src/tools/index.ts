@@ -7,6 +7,7 @@ import { registerWebTools } from './web/index.js';
 import { registerTodowriteTool } from './todowrite/index.js';
 import { registerTaskTool } from './task/index.js';
 import { registerSemanticSearchTool } from './semantic-search/index.js';
+import { registerRemoteTools } from './remote/index.js';
 
 let initialized = false;
 
@@ -22,6 +23,7 @@ export function initializeTools(): void {
   registerTodowriteTool();
   registerTaskTool();
   registerSemanticSearchTool();
+  registerRemoteTools();
   initialized = true;
 }
 
