@@ -1,19 +1,18 @@
 # Qode
 
-**Qode** is a professional, lightweight, and type-safe AI developer pair-programming command-line interface (CLI). Built with TypeScript and Node.js, Qode connects directly with various state-of-the-art AI model providers, equipped with context compression, local skill modules, remote registry integration, interactive filesystem browsing, inline shell executions, terminal theme settings, and advanced AI-powered features including plan mode, subagent delegation, semantic search, and local model support.
+**Qode** is a professional, lightweight, and type-safe AI developer pair-programming command-line interface (CLI). Built with TypeScript and Node.js, Qode connects directly with various state-of-the-art AI model providers, equipped with context compression, local skill modules, remote registry integration, interactive filesystem browsing, inline shell executions, terminal theme settings, and advanced AI-powered features including plan mode, subagent delegation, and semantic search.
 
 ---
 
 ## Key Features
 
-- **Multi-Provider & Multi-Model Support**: Connect natively to Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, Groq, GitHub Models, and local models via llama.cpp.
+- **Multi-Provider & Multi-Model Support**: Connect natively to Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, Groq, GitHub Models, and OpenCode Zen.
 - **Tool Registry System**: Modular, extensible tool registry with 50+ tools organized by category (file, shell, search, git, build, web, planning).
 - **Permission System**: Granular ask/allow/deny permissions per tool, per mode, per session with built-in modes (plan, build, explore).
 - **Plan Mode**: Read-only analysis mode for planning without making changes, with progress tracking via todowrite.
 - **Subagent Flow**: Delegate tasks to specialized subagents (explore, general) with isolated sessions and restricted permissions.
 - **LLM-Powered Semantic Search**: Search codebase by meaning using TF-IDF embeddings, not just keywords.
 - **Secure Credential Storage**: Encrypted provider credentials with masked interactive setup.
-- **Local Model Support**: Run models locally via llama.cpp with auto-download and server management.
 - **Interactive File System Browser (`Ctrl+F`)**: Interactively search and traverse your project directory in-place during prompt typing.
 - **Inline Shell Execution (`!`)**: Execute shell commands directly inside the chat prompt with built-in safety filtering.
 - **Context Compression & Sessions**: Automatically or manually compress conversational histories with intelligent pruning.
@@ -211,18 +210,6 @@ OpenCode Zen provides hosted models for coding and tooling tasks.
   - `nemotron-3-ultra-free`
   - `qwen3-5-plus`
 
-### 11. Local Models (llama.cpp)
-Run models locally on your machine using llama.cpp.
-- **Prerequisite**: install `llama-server` from `llama.cpp` (for example, `brew install llama.cpp` on macOS). Qode auto-detects the binary at startup. If it is missing, local mode cannot be used even when the model file is already downloaded.
-- **Setup**: enable in config (`~/.qode/config.json`):
-  ```json
-  { "localModel": { "enabled": true, "autoStart": true } }
-  ```
-- **Downloaded models**: Qode can download built-in GGUF model files such as the Qwen 2.5 Coder models and DeepSeek Coder V2 Lite into `~/.qode/models/`. The first suitable downloaded model is used as the default local model.
-- **Use in Qode**: after enabling local mode and ensuring `llama-server` is installed, run `qode use Local <model-name>` to make the local model the active chat backend.
-
----
-
 ### Authentication
 
 Qode is BYOK-only for API-key providers. Credentials are set up via `qode auth`, with keys stored encrypted at `~/.qode/auth.json`. Use `qode auth --reset` to remove stored keys.
@@ -316,7 +303,6 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 /skills search <query>       Search registry for skills
 /skills install <name> [--global]
 /skills list-local           List workspace + global installed skills
-/download-status             Check background model download progress
 /update-models               Fetch latest model lists from provider APIs
 ```
 

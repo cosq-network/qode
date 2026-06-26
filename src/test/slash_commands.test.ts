@@ -2,20 +2,6 @@ jest.mock('../utils/logger.js', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
 }));
 
-jest.mock('../utils/download-progress.js', () => ({
-  setDownloadProgress: jest.fn(),
-  resetDownloadProgress: jest.fn(),
-  getDownloadProgress: jest.fn(() => ({ status: 'idle', percent: 0 })),
-  listDownloadProgress: jest.fn(() => []),
-  loadDownloadProgress: jest.fn(async () => {}),
-}));
-
-jest.mock('../utils/notification.js', () => ({
-  notify: jest.fn(async () => {}),
-  writeDownloadStatus: jest.fn(async () => {}),
-  readDownloadStatus: jest.fn(async () => false),
-}));
-
 const mockAuthManager = {
   showStatus: jest.fn(async () => undefined),
   connectProvider: jest.fn(async () => true),
@@ -42,23 +28,7 @@ jest.mock('fs-extra', () => ({
   readdir: jest.fn(async () => []),
 }));
 
-jest.mock('child_process', () => {
-  const EventEmitter = require('events').EventEmitter;
-  return {
-    spawn: jest.fn(() => {
-      const proc = new EventEmitter();
-      proc.stderr = new EventEmitter();
-      proc.stdout = new EventEmitter();
-      process.nextTick(() => {
-        proc.stderr.emit('data', Buffer.from('100%'));
-        proc.emit('close', 0);
-      });
-      return proc;
-    }),
-  };
-});
-
-import { setKey, clearKey, handleSlashCommand, downloadQwenModel, downloadStatus } from '../commands/slash.js';
+import { setKey, clearKey, handleSlashCommand } from '../commands/slash.js';
 import { loadConfig, saveConfig } from '../config.js';
 
 describe('Slash command utilities', () => {
@@ -123,23 +93,6 @@ describe('Slash command utilities', () => {
     const handled = await handleSlashCommand('/connect anthropic');
     expect(handled).toBe(true);
     expect(mockAuthManager.connectProvider).toHaveBeenCalledWith('Anthropic');
-  });
-
-  test('downloadQwenModel runs silently', async () => {
-    await downloadQwenModel();
-    const { setDownloadProgress } = require('../utils/download-progress.js');
-    expect(setDownloadProgress).toHaveBeenCalled();
-  });
-
-  test('downloadStatus returns status info', async () => {
-    const { logger } = require('../utils/logger.js');
-    await downloadStatus();
-    expect(logger.info).toHaveBeenCalled();
-  });
-
-  test('handleSlashCommand handles /download-status', async () => {
-    const handled = await handleSlashCommand('/download-status');
-    expect(handled).toBe(true);
   });
 
   test('handleSlashCommand handles /models', async () => {

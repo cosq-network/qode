@@ -136,7 +136,6 @@ Enter slash commands directly into the prompt to manage your sessions, settings,
 /auth list                   List supported providers
 /auth set <provider>         Store an API key securely
 /auth clear <provider>       Remove stored credentials
-/download-status             Check background model download progress
 /update-models               Fetch latest model lists from provider APIs
 ```
 

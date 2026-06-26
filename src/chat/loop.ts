@@ -205,7 +205,7 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
 
   rl.on('line', async (input) => {
     let trimmed = input.trim();
-    // Check for slash commands first (e.g., /auth, /models, /download-status)
+    // Check for slash commands first (e.g., /auth, /models)
     const handled = await handleSlashCommand(trimmed);
     if (handled) {
       await promptNext(session, rl, config);
@@ -265,7 +265,6 @@ Commands:
   /save                       Save current session
   /skills                     Manage skills (list, search, install, list-local)
   /models                     List available models
-  /download-status            Check background model download progress
   /theme [name]               List or switch CLI visual themes
   /permissions [cmd]           View/set tool permissions (list, set, mode, clear)
   /allow-all                  Allow all tools for this session

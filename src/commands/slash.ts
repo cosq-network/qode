@@ -1,6 +1,5 @@
 import { loadConfig, saveConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { downloadQwenModelSilent, listLocalModels, listDownloadProgress } from '../models/downloader.js';
 import { listModels } from '../providers/models.js';
 import { getAuthManager } from '../auth/manager.js';
 import { AUTH_PROVIDERS, resolveAuthProviderName } from '../auth/providers.js';
@@ -87,49 +86,9 @@ export async function authCommand(action = 'status', providerInput?: string): Pr
   logger.info('Examples: /auth set openai, /auth set gemini, /auth status');
 }
 
-/** Trigger silent background download of the Qwen model. */
-export async function downloadQwenModel(): Promise<void> {
-  await downloadQwenModelSilent();
-}
-
-/** Show background download progress for all models. */
-export async function downloadStatus(): Promise<void> {
-  const progressList = listDownloadProgress();
-  const localModels = await listLocalModels();
-
-  const allDownloaded = localModels.every((m) => m.downloaded);
-  if (allDownloaded && progressList.length === 0) {
-    logger.info('📦 All models are downloaded. No active downloads.');
-    return;
-  }
-
-  if (progressList.length === 0) {
-    logger.info('📦 No download activity. Use /download-local to start downloading.');
-    return;
-  }
-
-  for (const p of progressList) {
-    if (p.status === 'completed') {
-      logger.info(`✅ ${p.modelName} — downloaded`);
-    } else if (p.status === 'downloading') {
-      const bar = makeProgressBar(p.percent, 20);
-      logger.info(`⬇️  ${p.modelName}: ${bar} ${p.percent}%`);
-    } else if (p.status === 'failed') {
-      logger.info(`❌ ${p.modelName} — failed: ${p.error ?? 'unknown error'}`);
-    } else {
-      logger.info(`⏸️  ${p.modelName} — ${p.status}`);
-    }
-  }
-}
-
-/** List available models (cloud + local). */
+/** List available models. */
 export async function listModelsCommand(): Promise<void> {
   await listModels();
-}
-
-function makeProgressBar(percent: number, width: number): string {
-  const filled = Math.round((percent / 100) * width);
-  return '█'.repeat(filled) + '░'.repeat(Math.max(0, width - filled));
 }
 
 /** Registry of slash command handlers. */
@@ -138,7 +97,6 @@ export const slashCommandHandlers: Record<string, (...args: string[]) => Promise
   'clear-key': async (provider: string) => clearKey(provider),
   'auth': async (action?: string, ...providerParts: string[]) => authCommand(action, providerParts.join(' ')),
   'connect': async (...providerParts: string[]) => authCommand('set', providerParts.join(' ')),
-  'download-status': async () => downloadStatus(),
   'models': async () => listModelsCommand(),
 };
 

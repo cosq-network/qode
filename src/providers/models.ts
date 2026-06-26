@@ -1,10 +1,8 @@
 import { loadConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { listLocalModels, formatSize } from '../models/downloader.js';
 import { getAuthManager } from '../auth/manager.js';
 import {
   PROVIDER_CATALOG,
-  getProviderCatalog,
   type ProviderRuntime,
 } from './catalog.js';
 
@@ -45,29 +43,6 @@ export async function listModels(): Promise<void> {
       logger.info(`  - ${label}`);
     }
   }
-
-  logger.info('\nLocal Models (llama.cpp):');
-  const localCfg = config.localModel;
-  const enabled = localCfg?.enabled ?? false;
-  logger.info(`  Status: ${enabled ? '✓ enabled' : '✗ disabled (set localModel.enabled in config)'}`);
-
-  try {
-    const localModels = await listLocalModels();
-    if (localModels.length === 0) {
-      logger.info('  No models downloaded yet.');
-    } else {
-      for (const model of localModels) {
-        const status = model.downloaded ? '✓' : '✗';
-        const size = model.downloaded ? ` (${formatSize(model.size)})` : '';
-        const quant = model.quantization ? ` [${model.quantization}]` : '';
-        logger.info(`  ${status} ${model.name}${quant}${size}`);
-      }
-    }
-  } catch {
-    logger.info('  (unable to list local models)');
-  }
-
-  logger.info('\n  Use "local" as model name to use a local model.');
 }
 
 export async function updateModels(): Promise<void> {
@@ -101,4 +76,4 @@ export function findModel(modelName: string): ModelMatch | null {
   return null;
 }
 
-export { PROVIDER_CATALOG, getProviderCatalog };
+export { PROVIDER_CATALOG };

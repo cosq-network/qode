@@ -4,14 +4,12 @@ import { OpenAICompatProvider } from '../providers/openai-compat.js';
 import { GeminiProvider } from '../providers/gemini.js';
 import { AnthropicProvider } from '../providers/anthropic.js';
 import { OpenCodeProvider } from '../providers/opencode.js';
-import { LocalModelProvider } from '../providers/local.js';
 import { LLMProvider } from '../providers/base.js';
 import { TOOL_DEFINITIONS } from '../tools/definitions.js';
 import { executeToolCall } from '../tools/exec.js';
 import { startMCPClients, MCPClient } from '../tools/mcp-client.js';
 import { initializeTools, globalRegistry } from '../tools/index.js';
 import { PermissionManager } from '../permissions/manager.js';
-import { BUILTIN_MODELS, isModelDownloaded } from '../models/downloader.js';
 import { getSubagentManager } from '../agents/subagent.js';
 import { getAuthManager } from '../auth/manager.js';
 import type { ToolDefinition } from '../tools/definitions.js';
@@ -83,23 +81,6 @@ export class ChatEngine {
 
   /** Create a provider instance for a given model name. */
   async createProvider(modelName: string): Promise<LLMProvider> {
-    // Check for local model
-    if (modelName === 'local' || modelName.toLowerCase().includes('local')) {
-      const localCfg = this.config.localModel;
-      if (localCfg?.enabled) {
-        const filename = localCfg.modelPath ?? BUILTIN_MODELS[0].filename;
-        if (await isModelDownloaded(filename)) {
-          return new LocalModelProvider(
-            `local-${filename.replace('.gguf', '')}`,
-            filename,
-            { port: localCfg.port, contextSize: localCfg.contextSize, threads: localCfg.threads, gpuLayers: localCfg.gpuLayers },
-          );
-        }
-        throw new Error(`Local model not found: ${filename}. Run 'qode models' to download.`);
-      }
-      throw new Error('Local model support is not enabled. Set localModel.enabled in config.');
-    }
-
     const found = findModel(modelName);
     if (!found) throw new Error(`Unknown model: ${modelName}`);
 

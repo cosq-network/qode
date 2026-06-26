@@ -38,24 +38,6 @@ export interface CompressionConfig {
   pruneMaxChars: number;
 }
 
-/** Configuration for the local llama.cpp model. */
-export interface LocalModelConfig {
-  /** Whether local model support is enabled. */
-  enabled: boolean;
-  /** Model filename to use (overrides auto-detect). */
-  modelPath?: string;
-  /** Port for llama-server (default: 8080). */
-  port?: number;
-  /** Context size for llama-server (default: 32768). */
-  contextSize?: number;
-  /** Number of CPU threads (default: auto). */
-  threads?: number;
-  /** Number of GPU layers to offload (default: 0 = CPU only). */
-  gpuLayers?: number;
-  /** Start llama-server automatically on qode launch. */
-  autoStart?: boolean;
-}
-
 export interface QodeConfig {
   providers: Record<string, ProviderConfig>;
   defaultModel?: string;
@@ -70,8 +52,6 @@ export interface QodeConfig {
   permissionModes?: ModePermissions;
   /** Compression and pruning settings. */
   compression?: Partial<CompressionConfig>;
-  /** Local model (llama.cpp) settings. */
-  localModel?: LocalModelConfig;
   /** Active agent mode. */
   mode?: AgentMode;
 }
@@ -131,7 +111,7 @@ export async function loadConfig(): Promise<QodeConfig> {
   } catch (error: any) {
     if (error?.code === 'ENOENT') {
       // No config file – start from defaults and apply env vars.
-      return applyEnvOverrides({ ...DEFAULT_CONFIG });
+  return applyEnvOverrides({ ...DEFAULT_CONFIG });
     }
     throw error;
   }

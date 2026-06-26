@@ -2,7 +2,6 @@ import fs from 'fs-extra';
 import path from 'path';
 import { getSubagentManager } from '../agents/subagent.js';
 import { getModelCompletionEntries } from '../providers/models.js';
-import { BUILTIN_MODELS } from '../models/downloader.js';
 
 export type CompletionMode = 'slash' | 'mention';
 
@@ -128,16 +127,10 @@ export function getSlashSuggestions(input: string): string[] {
     '/search': [
       { value: '/search --rebuild', description: 'Rebuild the search index' },
     ],
-    '/model': [
-      ...getModelCompletionEntries().map((model) => ({
-        value: `/model ${model.value}`,
-        description: model.description,
-      })),
-      ...BUILTIN_MODELS.map((model) => ({
-        value: `/model ${model.name}`,
-        description: 'Local (GGUF)',
-      })),
-    ],
+    '/model': getModelCompletionEntries().map((model) => ({
+      value: `/model ${model.value}`,
+      description: model.description,
+    })),
   };
 
   if (!input.endsWith(' ') && rest.length === 0) {
@@ -186,7 +179,6 @@ export function getSlashCommandItems(): CompletionItem[] {
     { value: '/connect', description: 'Set up BYOK auth provider (alias for /auth set)', group: 'auth' },
     { value: '/auth', description: 'Manage BYOK API keys securely', group: 'auth' },
     { value: '/models', description: 'List available models', group: 'core' },
-    { value: '/download-status', description: 'Check download progress', group: 'workspace' },
     { value: '/exit', description: 'Exit the application', group: 'session' },
     { value: '/cancel', description: 'Cancel multiline input', group: 'session' },
   ];

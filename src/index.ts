@@ -8,13 +8,11 @@ import { dirname, resolve } from 'path';
 import { confirm, isCancel } from '@clack/prompts';
 import { logger } from './utils/logger.js';
 import { startChatLoop } from './chat/loop.js';
-import { downloadQwenModel } from './commands/slash.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 const SENTINEL = 'QODE_DOTENV_LOADED';
-const SKIP_STARTUP_TASKS = process.env.QODE_SKIP_STARTUP_TASKS === '1';
 
 async function loadQodeEnvFile() {
   try {
@@ -45,41 +43,6 @@ async function loadQodeEnvFile() {
 
 if (!process.env[SENTINEL]) {
   loadQodeEnvFile();
-}
-
-if (!SKIP_STARTUP_TASKS) {
-  // Background model download
-  void (async () => {
-    try {
-      await downloadQwenModel();
-    } catch (e) {
-      logger.error(`Background Qwen model download failed: ${(e as Error).message}`);
-    }
-  })();
-
-  // Optionally start llama-server if local model is enabled
-  void (async () => {
-    try {
-      const { loadConfig } = await import('./config.js');
-      const config = await loadConfig();
-      if (config.localModel?.enabled && config.localModel?.autoStart) {
-        const { getLlamaServerManager } = await import('./models/llama-server.js');
-        const { BUILTIN_MODELS, isModelDownloaded } = await import('./models/downloader.js');
-        const filename = config.localModel.modelPath ?? BUILTIN_MODELS[0].filename;
-        if (await isModelDownloaded(filename)) {
-          const mgr = getLlamaServerManager(filename, {
-            port: config.localModel.port,
-            contextSize: config.localModel.contextSize,
-            threads: config.localModel.threads,
-            gpuLayers: config.localModel.gpuLayers,
-          });
-          await mgr.start();
-        }
-      }
-    } catch (e) {
-      logger.error(`Failed to start llama-server: ${(e as Error).message}`);
-    }
-  })();
 }
 
 import { listModels, updateModels } from './providers/models.js';
