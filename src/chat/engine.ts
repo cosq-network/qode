@@ -37,14 +37,6 @@ export class MissingApiKeyError extends Error {
  * This makes the REPL loop (`loop.ts`) much simpler and enables easier unit-testing.
  */
 export class ChatEngine {
-  /** Mapping of provider → default OpenAI-compatible endpoint */
-  private static readonly DEFAULT_BASE_URL: Record<string, string> = {
-    'DeepSeek API': 'https://api.deepseek.com/v1',
-    'OpenRouter': 'https://openrouter.ai/api/v1',
-    'GroqCloud': 'https://api.groq.com/openai/v1',
-    'GitHub Models': 'https://models.inference.ai.azure.com',
-    default: 'https://api.openai.com/v1',
-  };
   private mcpClients: MCPClient[] = [];
   private allTools: ToolDefinition[] = [];
   private config: QodeConfig;
@@ -121,24 +113,22 @@ export class ChatEngine {
       throw new MissingApiKeyError(found.providerKey);
     }
 
-    // Google AI Studio uses the native Gemini SDK
-    if (found.providerKey === 'Google AI Studio') {
+    if (found.runtime === 'gemini') {
       return new GeminiProvider(found.model, apiKey);
     }
 
-    // Anthropic uses its own SDK
-    if (found.providerKey === 'Anthropic') {
+    if (found.runtime === 'anthropic') {
       return new AnthropicProvider(found.model, 200_000, apiKey);
     }
 
-    // OpenCode Zen has its own endpoint
-    if (found.providerKey === 'OpenCode' || found.providerKey === 'OpenCode Zen') {
+    if (found.runtime === 'opencode') {
       return new OpenCodeProvider(found.model, apiKey);
     }
 
-    // Everything else goes through OpenAI-compatible endpoint
-    const baseURL = this.config.providers[found.providerKey]?.baseURL ??
-      (ChatEngine.DEFAULT_BASE_URL[found.providerKey] ?? ChatEngine.DEFAULT_BASE_URL.default);
+    const baseURL = this.config.providers[found.providerKey]?.baseURL ?? found.baseURL;
+    if (!baseURL) {
+      throw new Error(`No base URL configured for provider ${found.providerKey}.`);
+    }
     return new OpenAICompatProvider(found.providerKey, found.model, apiKey, baseURL);
   }
 
@@ -235,14 +225,20 @@ export class ChatEngine {
             if (signal?.aborted) {
               throw new Error('Operation cancelled.');
             }
-            const args = JSON.parse(toolCall.function.arguments);
-            // Execute with subagent's permissions (bypass main session permissions)
-            let result: string;
-            if (globalRegistry.has(toolCall.function.name)) {
-              result = await globalRegistry.execute(toolCall.function.name, args);
-            } else {
-              result = await executeToolCall(toolCall.function.name, args, signal);
+            let args: Record<string, unknown>;
+            try {
+              args = JSON.parse(toolCall.function.arguments || '{}');
+            } catch (error: unknown) {
+              const message = error instanceof Error ? error.message : String(error);
+              args = {};
+              subMessages.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `Error: Invalid tool arguments JSON: ${message}`,
+              });
+              continue;
             }
+            const result = await this.executeTool(toolCall.function.name, args, signal);
 
             subMessages.push({
               role: 'tool',

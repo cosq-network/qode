@@ -47,11 +47,13 @@ Yes. This provider is suitable for servers and CI when:
 ## Available models
 
 Current integration includes:
-- `gpt-5-mini`
+- `gpt-5.4-mini`
+- `gpt-5.4`
+- `gpt-5.5`
 
 Choose with:
 ```text
-/model gpt-5-mini
+/model gpt-5.4-mini
 ```
 
 Additional compatible OpenAI model IDs may be usable depending on account access and provider mapping.
@@ -60,7 +62,7 @@ Additional compatible OpenAI model IDs may be usable depending on account access
 
 Change the active model for the current session:
 ```text
-/model gpt-5-mini
+/model gpt-5.4-mini
 ```
 
 ## Limits and notes

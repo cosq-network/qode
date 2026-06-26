@@ -49,19 +49,20 @@ Yes. This provider is appropriate for servers and CI when:
 ## Available models
 
 Model options include:
-- `Gemini 3.1 Pro Preview`
-- `Gemini 2.5 Flash`
+- `gemini-2.5-pro`
+- `gemini-2.5-flash`
+- `gemini-3.1-pro-preview`
 
 Choose with:
 ```text
-/model Gemini 2.5 Flash
+/model gemini-2.5-flash
 ```
 
 ## Switching models
 
 Change the active model for the current session:
 ```text
-/model Gemini 2.5 Flash
+/model gemini-2.5-flash
 ```
 
 ## Limits and notes

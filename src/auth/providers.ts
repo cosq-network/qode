@@ -1,4 +1,5 @@
 import { isCancel, password } from '@clack/prompts';
+import { PROVIDER_CATALOG, resolveProviderName } from '../providers/catalog.js';
 import type { AuthProvider, AuthTokens, DeviceCodeSession } from './storage.js';
 
 /** Google AI Studio auth provider (API key based). */
@@ -187,10 +188,51 @@ export const GitHubAuthProvider: AuthProvider = {
   },
 };
 
+function makeApiKeyProvider(name: string, description: string, promptMessage: string, apiKeyEnv?: string): AuthProvider {
+  return {
+    name,
+    type: 'api-key',
+    description,
+    apiKeyEnv,
+    async setupApiKey(): Promise<string> {
+      const apiKey = await password({ message: promptMessage, mask: '*' });
+      return isCancel(apiKey) ? '' : apiKey.trim();
+    },
+    async validateCredentials(tokens: AuthTokens): Promise<boolean> {
+      return !!tokens.accessToken;
+    },
+  };
+}
+
+const catalogByKey = Object.fromEntries(PROVIDER_CATALOG.map((provider) => [provider.key, provider]));
+
 /** All built-in auth providers. */
 export const AUTH_PROVIDERS: Record<string, AuthProvider> = {
   'Google AI Studio': GoogleAuthProvider,
   'OpenAI': OpenAIAuthProvider,
   'Anthropic': AnthropicAuthProvider,
   'GitHub Copilot': GitHubAuthProvider,
+  'GitHub Models': {
+    name: 'GitHub Models',
+    type: 'api-key',
+    description: 'GitHub Models API key or PAT',
+    apiKeyEnv: catalogByKey['GitHub Models']?.envVar,
+    async setupApiKey(): Promise<string> {
+      const apiKey = await password({ message: 'Enter your GitHub Models API key or PAT:', mask: '*' });
+      return isCancel(apiKey) ? '' : apiKey.trim();
+    },
+    async validateCredentials(tokens: AuthTokens): Promise<boolean> {
+      return !!tokens.accessToken;
+    },
+  },
+  'DeepSeek API': makeApiKeyProvider('DeepSeek API', 'DeepSeek API key', 'Enter your DeepSeek API key:', catalogByKey['DeepSeek API']?.envVar),
+  'OpenRouter': makeApiKeyProvider('OpenRouter', 'OpenRouter API key', 'Enter your OpenRouter API key:', catalogByKey.OpenRouter?.envVar),
+  'GroqCloud': makeApiKeyProvider('GroqCloud', 'GroqCloud API key', 'Enter your GroqCloud API key:', catalogByKey.GroqCloud?.envVar),
+  'OpenCode Zen': makeApiKeyProvider('OpenCode Zen', 'OpenCode Zen API key', 'Enter your OpenCode Zen API key:', catalogByKey['OpenCode Zen']?.envVar),
+  'Z.ai': makeApiKeyProvider('Z.ai', 'Z.ai API key', 'Enter your Z.ai API key:', catalogByKey['Z.ai']?.envVar),
 };
+
+export function resolveAuthProviderName(input: string): string | null {
+  const provider = resolveProviderName(input);
+  return provider && AUTH_PROVIDERS[provider] ? provider : null;
+}

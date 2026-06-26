@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { getSubagentManager } from '../agents/subagent.js';
-import { DEFAULT_MODELS } from '../providers/models.js';
+import { getModelCompletionEntries } from '../providers/models.js';
 import { BUILTIN_MODELS } from '../models/downloader.js';
 
 export type CompletionMode = 'slash' | 'mention';
@@ -84,9 +84,24 @@ export function getSlashSuggestions(input: string): string[] {
   const prefix = rest.join(' ');
   const groups: Record<string, CompletionItem[]> = {
     '/auth': [
-      { value: '/auth status', description: 'Show authentication status for all providers' },
-      { value: '/auth connect', description: 'Connect an auth provider (API key or device code)' },
-      { value: '/auth logout', description: 'Remove stored credentials for a provider' },
+      { value: '/auth status', description: 'Show configured BYOK providers' },
+      { value: '/auth list', description: 'List supported auth providers' },
+      { value: '/auth set openai', description: 'Store an OpenAI API key securely' },
+      { value: '/auth set gemini', description: 'Store a Google AI Studio key securely' },
+      { value: '/auth set anthropic', description: 'Store an Anthropic API key securely' },
+      { value: '/auth set openrouter', description: 'Store an OpenRouter API key securely' },
+      { value: '/auth set groq', description: 'Store a GroqCloud API key securely' },
+      { value: '/auth set deepseek', description: 'Store a DeepSeek API key securely' },
+      { value: '/auth set github-models', description: 'Store a GitHub Models key securely' },
+      { value: '/auth clear openai', description: 'Remove stored OpenAI credentials' },
+      { value: '/auth clear gemini', description: 'Remove stored Google AI Studio credentials' },
+    ],
+    '/connect': [
+      { value: '/connect openai', description: 'Alias for /auth set openai' },
+      { value: '/connect gemini', description: 'Alias for /auth set gemini' },
+      { value: '/connect anthropic', description: 'Alias for /auth set anthropic' },
+      { value: '/connect openrouter', description: 'Alias for /auth set openrouter' },
+      { value: '/connect groq', description: 'Alias for /auth set groq' },
     ],
     '/mode': [
       { value: '/mode build', description: 'Allow tool use and edits' },
@@ -114,12 +129,10 @@ export function getSlashSuggestions(input: string): string[] {
       { value: '/search --rebuild', description: 'Rebuild the search index' },
     ],
     '/model': [
-      ...Object.entries(DEFAULT_MODELS).flatMap(([provider, models]) =>
-        models.map((model) => ({
-          value: `/model ${model}`,
-          description: provider,
-        })),
-      ),
+      ...getModelCompletionEntries().map((model) => ({
+        value: `/model ${model.value}`,
+        description: model.description,
+      })),
       ...BUILTIN_MODELS.map((model) => ({
         value: `/model ${model.name}`,
         description: 'Local (GGUF)',
@@ -170,8 +183,8 @@ export function getSlashCommandItems(): CompletionItem[] {
     { value: '/mode', description: 'Switch build or plan mode', group: 'session' },
     { value: '/plan', description: 'Manage the active plan', group: 'session' },
     { value: '/task', description: 'Delegate work to a subagent', group: 'agent' },
-    { value: '/connect', description: 'Connect an auth provider (alias for /auth connect)', group: 'auth' },
-    { value: '/auth', description: 'Show auth status, connect, or logout providers', group: 'auth' },
+    { value: '/connect', description: 'Set up BYOK auth provider (alias for /auth set)', group: 'auth' },
+    { value: '/auth', description: 'Manage BYOK API keys securely', group: 'auth' },
     { value: '/models', description: 'List available models', group: 'core' },
     { value: '/download-status', description: 'Check download progress', group: 'workspace' },
     { value: '/exit', description: 'Exit the application', group: 'session' },

@@ -126,7 +126,6 @@ const echoUpdateShellEnv: RegisteredTool = {
           value: { type: 'string', description: 'Environment variable value for set_env.' },
           pathEntry: { type: 'string', description: 'Directory to add to PATH for add_path.' },
           mode: { type: 'string', enum: ['prepend', 'append'], description: 'Whether to prepend or append pathEntry. Defaults to prepend.' },
-          homeDir: { type: 'string', description: 'Home directory containing .bashrc/.zshrc. Defaults to the current user home.' },
         },
         required: ['action'],
       } as any,

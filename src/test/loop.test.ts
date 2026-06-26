@@ -1,5 +1,5 @@
 // src/test/loop.test.ts
-import { executeShellCommand, completer } from '../chat/loop.js';
+import { executeShellCommand, completer, shouldUseTui } from '../chat/loop.js';
 import { exec } from 'child_process';
 import { setCwd } from '../tools/exec.js';
 import fs from 'fs-extra';
@@ -84,6 +84,22 @@ describe('Chat Loop Completer', () => {
     expect(hits).toContain('review @src/chat/');
 
     spy.mockRestore();
+  });
+});
+
+describe('TUI startup decision', () => {
+  test('uses TUI only for TTY non-JSON output', () => {
+    expect(shouldUseTui(true, false)).toBe(true);
+    expect(shouldUseTui(false, false)).toBe(false);
+    expect(shouldUseTui(true, true)).toBe(false);
+  });
+
+  test('supports QODE_TUI opt-out values', () => {
+    expect(shouldUseTui(true, false, '0')).toBe(false);
+    expect(shouldUseTui(true, false, 'false')).toBe(false);
+    expect(shouldUseTui(true, false, 'off')).toBe(false);
+    expect(shouldUseTui(true, false, 'no')).toBe(false);
+    expect(shouldUseTui(true, false, '1')).toBe(true);
   });
 });
 

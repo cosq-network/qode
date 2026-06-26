@@ -50,12 +50,12 @@ Yes. This provider is suitable for servers and CI when:
 ## Available models
 
 Model options include:
-- `DeepSeek V4-Pro`
-- `DeepSeek V4-Flash`
+- `deepseek-reasoner`
+- `deepseek-chat`
 
 Choose with:
 ```text
-/model DeepSeek V4-Pro
+/model deepseek-reasoner
 ```
 
 Other DeepSeek model IDs may be usable depending on provider mapping.
@@ -64,7 +64,7 @@ Other DeepSeek model IDs may be usable depending on provider mapping.
 
 Change the active model for the current session:
 ```text
-/model DeepSeek V4-Pro
+/model deepseek-reasoner
 ```
 
 ## Limits and notes

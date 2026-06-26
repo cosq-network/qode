@@ -38,18 +38,23 @@ export class PermissionManager {
       return this.globalRules[toolName];
     }
 
-    // 4. Category rule (via registry permissionKey)
+    // 4. Tools marked confirmation-required ask by default unless explicitly allowed.
+    if (globalRegistry.requiresConfirmation(toolName)) {
+      return 'ask';
+    }
+
+    // 5. Category rule (via registry permissionKey)
     const permissionKey = globalRegistry.getPermissionKey(toolName);
     if (permissionKey && this.globalRules[permissionKey] !== undefined) {
       return this.globalRules[permissionKey];
     }
 
-    // 5. Wildcard rule
+    // 6. Wildcard rule
     if (this.globalRules['*'] !== undefined) {
       return this.globalRules['*'];
     }
 
-    // 6. Default: allow
+    // 7. Default: allow
     return 'allow';
   }
 

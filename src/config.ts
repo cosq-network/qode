@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { isCancel, password } from '@clack/prompts';
+import { PROVIDER_CATALOG } from './providers/catalog.js';
 import { getQodeSubdir, getWritableQodeHome } from './utils/app-paths.js';
 
 export interface ProviderConfig {
@@ -155,20 +156,13 @@ export async function configureAuth(): Promise<void> {
     return value;
   };
 
-  const providers = [
-    'Google AI Studio',
-    'GitHub Models',
-    'DeepSeek API',
-    'OpenRouter',
-    'GroqCloud',
-    'OpenCode Zen',
-  ];
+  const providers = PROVIDER_CATALOG.filter((provider) => provider.authType === 'api-key');
 
   for (const provider of providers) {
-    const value = await askSecret(`${provider} API key (leave blank to skip): `);
+    const value = await askSecret(`${provider.key} API key (leave blank to skip): `);
     if (value.trim()) {
-      config.providers[provider] = {
-        ...config.providers[provider],
+      config.providers[provider.key] = {
+        ...config.providers[provider.key],
         apiKey: value.trim(),
       };
     }
@@ -180,18 +174,11 @@ export async function configureAuth(): Promise<void> {
 
 /** Apply environment variable overrides for API keys – useful for CI pipelines. */
 function applyEnvOverrides(config: QodeConfig): QodeConfig {
-  const envMap: Record<string, string | undefined> = {
-    'Google AI Studio': process.env.GOOGLE_API_KEY,
-    'GitHub Models': process.env.GITHUB_MODELS_API_KEY,
-    'DeepSeek API': process.env.DEEPSEEK_API_KEY,
-    'OpenRouter': process.env.OPENROUTER_API_KEY,
-    'GroqCloud': process.env.GROQ_API_KEY,
-    'OpenCode Zen': process.env.OPENCODE_ZEN_API_KEY,
-  };
-  for (const [provider, key] of Object.entries(envMap)) {
+  for (const provider of PROVIDER_CATALOG) {
+    const key = provider.envVar ? process.env[provider.envVar] : undefined;
     if (key) {
-      config.providers[provider] = {
-        ...(config.providers[provider] ?? {}),
+      config.providers[provider.key] = {
+        ...(config.providers[provider.key] ?? {}),
         apiKey: key,
       };
     }

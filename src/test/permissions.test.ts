@@ -1,9 +1,11 @@
 import { PermissionManager } from '../permissions/manager.js';
+import { initializeTools } from '../tools/index.js';
 
 describe('PermissionManager', () => {
   let manager: PermissionManager;
 
   beforeEach(() => {
+    initializeTools();
     manager = new PermissionManager();
   });
 
@@ -67,5 +69,14 @@ describe('PermissionManager', () => {
     manager.setSessionOverride('shell_exec', 'allow');
     const level = manager.getEffectivePermission('shell_exec');
     expect(level).toBe('allow');
+  });
+
+  test('confirmation-required tools ask by default', () => {
+    expect(manager.getEffectivePermission('echo_update_shell_env')).toBe('ask');
+  });
+
+  test('explicit tool allow overrides confirmation-required default', () => {
+    manager = new PermissionManager({ echo_update_shell_env: 'allow', edit: 'deny' });
+    expect(manager.getEffectivePermission('echo_update_shell_env')).toBe('allow');
   });
 });

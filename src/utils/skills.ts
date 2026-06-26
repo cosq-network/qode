@@ -79,9 +79,9 @@ export async function loadSkills(workspaceCwd: string): Promise<Skill[]> {
     }
   };
   
+  await scanDir(bundledSkillsDir);
   await scanDir(globalSkillsDir);
   await scanDir(workspaceSkillsDir);
-  await scanDir(bundledSkillsDir);
   
   // Return unique skills by name (workspace overrides global; bundled acts as default)
   const uniqueSkills: Record<string, Skill> = {};

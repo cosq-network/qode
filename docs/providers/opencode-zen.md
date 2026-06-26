@@ -1,6 +1,6 @@
 # OpenCode Zen
 
-Qode provider key: `OpenCode Zen`, `OpenCode`
+Qode provider key: `OpenCode Zen`
 
 Base URL: https://opencode.ai/zen/v1
 Environment variable: `OPENCODE_ZEN_API_KEY`
@@ -11,7 +11,7 @@ Use this provider for OpenCode Zen-hosted models.
 
 ## Credential setup
 
-This provider currently supports API key auth via environment variable only.
+This provider supports API key auth through `/auth set opencode` or an environment variable.
 
 Set for a single session:
 ```bash
@@ -30,12 +30,15 @@ $env:OPENCODE_ZEN_API_KEY='your-opencode-zen-key'
 [System.Environment]::SetEnvironmentVariable('OPENCODE_ZEN_API_KEY','your-opencode-zen-key','User')
 ```
 
-Interactive `qode auth` setup is not available for this provider yet.
+Interactive setup:
+```text
+/auth set opencode
+```
 
 ## Runtime auth behavior
 
 - The runtime prefers `OPENCODE_ZEN_API_KEY` from the environment at launch.
-- No API key is stored automatically by `qode auth` for this provider today.
+- If no environment key is present, it uses encrypted credentials stored by `/auth set opencode`.
 
 ## Which activation/payment sources apply
 
@@ -52,23 +55,23 @@ Yes. This provider is suitable for servers and CI when:
 ## Available models
 
 Current integration includes:
-- `Big Pickle`
+- `big-pickle`
 - `deepseek-v4-flash-free`
 - `nemotron-3-ultra-free`
 - `qwen3-5-plus`
 
 Choose with:
 ```text
-/model Big Pickle
+/model big-pickle
 ```
 
-The alias `Big Pickle` maps to the internal model name `big-pickle`.
+The alias `Big Pickle` still maps to `big-pickle`.
 
 ## Switching models
 
 Change the active model for the current session:
 ```text
-/model Big Pickle
+/model big-pickle
 ```
 
 ## Limits and notes

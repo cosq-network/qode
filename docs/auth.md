@@ -4,7 +4,25 @@ Qode provides an encrypted interactive auth flow and optional environment-variab
 
 ## Secure interactive auth
 
-Use:
+From inside Qode, use:
+```text
+/auth status
+/auth list
+/auth set <provider>
+/auth clear <provider>
+```
+
+Examples:
+```text
+/auth set openai
+/auth set gemini
+/auth set anthropic
+/auth clear openrouter
+```
+
+Provider keys are entered through a masked prompt and stored encrypted.
+
+From the system shell, use:
 ```bash
 qode auth
 qode auth --reset
@@ -26,15 +44,15 @@ Qode attempts to validate credentials before saving them when the provider suppo
 
 From inside Qode:
 ```text
-/auth logout <provider>
+/auth clear <provider>
 ```
 
 Examples:
 ```text
-/auth logout OpenAI
-/auth logout Google AI Studio
-/auth logout Anthropic
-/auth logout GitHub Copilot
+/auth clear openai
+/auth clear gemini
+/auth clear anthropic
+/auth clear copilot
 ```
 
 Also remove:
@@ -51,13 +69,12 @@ Interactive auth flow:
 - OpenAI
 - Anthropic
 - GitHub Copilot
-
-Environment-variable / API-key auth without `qode auth`:
 - GitHub Models
 - DeepSeek API
 - OpenRouter
 - GroqCloud
 - OpenCode Zen
+- Z.ai
 
 ## Server and headless usage
 

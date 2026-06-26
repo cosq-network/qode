@@ -132,8 +132,10 @@ Enter slash commands directly into the prompt to manage your sessions, settings,
 ### Auth & Config
 
 ```text
-/set-key <provider> <key>    Set an API key for a provider
-/clear-key <provider>        Remove a stored API key for a provider
+/auth status                 Show BYOK auth status
+/auth list                   List supported providers
+/auth set <provider>         Store an API key securely
+/auth clear <provider>       Remove stored credentials
 /download-status             Check background model download progress
 /update-models               Fetch latest model lists from provider APIs
 ```
@@ -295,7 +297,7 @@ These local skills automatically override global custom skills if they share mat
 
 ## 9. Authentication
 
-Qode is BYOK-only for API-key providers. Credentials are set up via `qode auth`, with keys stored encrypted at `~/.qode/auth.json`. Use `qode auth --reset` to remove stored keys.
+Qode is BYOK-only for API-key providers. Credentials are set up with `/auth set <provider>` inside Qode or `qode auth` from the shell, with keys stored encrypted at `~/.qode/auth.json`. Use `/auth clear <provider>` or `qode auth --reset` to remove stored keys.
 
 GitHub Copilot is an exception: configure it with `qode auth --device github-copilot`. No subscription sign-in is available through chat commands.
 

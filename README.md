@@ -202,15 +202,14 @@ qode auth --device github-copilot
 ```
 Usage from chat is not available for this provider.
 
-### 10. OpenCode (Free)
-OpenCode provides free, open-source models for coding and tooling tasks.
-- **Required Env Var**: none (no API key needed)
+### 10. OpenCode Zen
+OpenCode Zen provides hosted models for coding and tooling tasks.
+- **Required Env Var**: `OPENCODE_ZEN_API_KEY`
 - **Supported Models**:
   - `big-pickle`
   - `deepseek-v4-flash-free`
-  - `mimo-v2-5-free`
   - `nemotron-3-ultra-free`
-  - `north-mini-code-free`
+  - `qwen3-5-plus`
 
 ### 11. Local Models (llama.cpp)
 Run models locally on your machine using llama.cpp.
@@ -303,8 +302,10 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 ### Auth & Config
 
 ```text
-/set-key <provider> <key>    Set an API key for a provider
-/clear-key <provider>        Remove a stored API key for a provider
+/auth status                 Show BYOK auth status
+/auth list                   List supported providers
+/auth set <provider>         Store an API key securely
+/auth clear <provider>       Remove stored credentials
 ```
 
 ### Skills & Models
@@ -360,5 +361,3 @@ npm run build
 ## License
 
 MIT
-
-

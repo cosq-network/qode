@@ -16,6 +16,16 @@ jest.mock('../utils/notification.js', () => ({
   readDownloadStatus: jest.fn(async () => false),
 }));
 
+const mockAuthManager = {
+  showStatus: jest.fn(async () => undefined),
+  connectProvider: jest.fn(async () => true),
+  disconnectProvider: jest.fn(async () => true),
+};
+
+jest.mock('../auth/manager.js', () => ({
+  getAuthManager: () => mockAuthManager,
+}));
+
 const mockConfig = { providers: {} as Record<string, { apiKey?: string }> };
 jest.mock('fs-extra', () => ({
   ensureDir: jest.fn(async () => undefined),
@@ -60,6 +70,10 @@ describe('Slash command utilities', () => {
     await saveConfig({ providers: {} } as any);
   });
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   test('setKey updates config', async () => {
     await setKey(testProvider, testKey);
     const cfg = await loadConfig();
@@ -79,6 +93,36 @@ describe('Slash command utilities', () => {
     expect(handled).toBe(true);
     const cfg = await loadConfig();
     expect(cfg.providers?.[testProvider]?.apiKey).toBe(testKey);
+  });
+
+  test('handleSlashCommand shows /auth status', async () => {
+    const handled = await handleSlashCommand('/auth status');
+    expect(handled).toBe(true);
+    expect(mockAuthManager.showStatus).toHaveBeenCalledTimes(1);
+  });
+
+  test('handleSlashCommand connects provider with friendly alias', async () => {
+    const handled = await handleSlashCommand('/auth set gemini');
+    expect(handled).toBe(true);
+    expect(mockAuthManager.connectProvider).toHaveBeenCalledWith('Google AI Studio');
+  });
+
+  test('handleSlashCommand accepts provider display names with spaces', async () => {
+    const handled = await handleSlashCommand('/auth set Google AI Studio');
+    expect(handled).toBe(true);
+    expect(mockAuthManager.connectProvider).toHaveBeenCalledWith('Google AI Studio');
+  });
+
+  test('handleSlashCommand clears provider with friendly alias', async () => {
+    const handled = await handleSlashCommand('/auth clear openai');
+    expect(handled).toBe(true);
+    expect(mockAuthManager.disconnectProvider).toHaveBeenCalledWith('OpenAI');
+  });
+
+  test('handleSlashCommand supports /connect alias', async () => {
+    const handled = await handleSlashCommand('/connect anthropic');
+    expect(handled).toBe(true);
+    expect(mockAuthManager.connectProvider).toHaveBeenCalledWith('Anthropic');
   });
 
   test('downloadQwenModel runs silently', async () => {

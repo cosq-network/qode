@@ -17,6 +17,8 @@ jest.mock('../providers/models', () => ({
     model: 'test-model',
     providerKey: 'TestProvider',
     providerName: 'TestProvider',
+    runtime: 'openai-compatible',
+    baseURL: 'https://example.test/v1',
   }),
 }));
 

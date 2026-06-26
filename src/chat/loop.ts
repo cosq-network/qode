@@ -53,11 +53,16 @@ async function runTurn(session: Session, engine: ChatEngine): Promise<void> {
 }
 
 export async function startChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
-  const useTui = process.stdout.isTTY && !(globalThis as any).JSON_OUTPUT;
+  const useTui = shouldUseTui(process.stdout.isTTY, Boolean((globalThis as any).JSON_OUTPUT), process.env.QODE_TUI);
   if (useTui) {
     return startTuiChatLoop(resumeId, initialModel);
   }
   return startLegacyChatLoop(resumeId, initialModel);
+}
+
+export function shouldUseTui(stdoutIsTTY: boolean | undefined, jsonOutput: boolean, tuiEnv?: string): boolean {
+  const tuiDisabled = ['0', 'false', 'off', 'no'].includes((tuiEnv ?? '').toLowerCase());
+  return Boolean(stdoutIsTTY) && !jsonOutput && !tuiDisabled;
 }
 
 async function startTuiChatLoop(resumeId?: string, initialModel?: string): Promise<void> {
@@ -200,7 +205,7 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
 
   rl.on('line', async (input) => {
     let trimmed = input.trim();
-    // Check for slash commands first (e.g., /set-key, /clear-key, /download-qwen)
+    // Check for slash commands first (e.g., /auth, /models, /download-status)
     const handled = await handleSlashCommand(trimmed);
     if (handled) {
       await promptNext(session, rl, config);
@@ -268,10 +273,11 @@ Commands:
   /mode [plan|build]           Switch agent mode or show current mode
   /plan [show|clear|export]    Manage active plan
   /task <subagent> <prompt>    Delegate task to a subagent (explore, general)
-  /auth                       Show auth status for all providers
-  /auth connect <provider>    Set up authentication for a provider
-  /auth logout <provider>     Remove stored credentials for a provider
-  /set-key <provider> <key>   Set an API key for a provider
+  /auth status                Show BYOK auth status for all providers
+  /auth list                  List supported BYOK providers
+  /auth set <provider>        Store a provider API key securely
+  /auth clear <provider>      Remove stored credentials for a provider
+  /set-key <provider> <key>   Legacy config API key setter
   /status                     Show session dashboard (tokens, duration, changed files)
   /copy                       Copy last response to clipboard
   /paste                      Paste clipboard content as prompt
@@ -1026,17 +1032,19 @@ async function activateSkills(prompt: string, session: Session): Promise<void> {
   try {
     const skills = await loadSkills(process.cwd());
     const matched = matchSkills(prompt, skills);
-    if (session.messages.length === 0) {
-      session.messages.push({ role: 'system', content: session.systemPrompt });
+    let systemMessage = session.messages.find((message) => message.role === 'system');
+    if (!systemMessage) {
+      systemMessage = { role: 'system', content: session.systemPrompt };
+      session.messages.unshift(systemMessage);
     }
     if (matched.length > 0) {
       logger.info(`💡 Activating skills: ${matched.map(s => s.name).join(', ')}`);
       const skillInstructions = matched
         .map(s => `=== Skill: ${s.name} ===\n${s.instructions}`)
         .join('\n\n');
-      session.messages[0].content = `${session.systemPrompt}\n\n${skillInstructions}`;
+      systemMessage.content = `${session.systemPrompt}\n\n${skillInstructions}`;
     } else {
-      session.messages[0].content = session.systemPrompt;
+      systemMessage.content = session.systemPrompt;
     }
   } catch (error: any) {
     logger.error(`Failed to load or match skills: ${error.message}`);

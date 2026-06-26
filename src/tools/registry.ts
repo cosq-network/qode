@@ -73,6 +73,11 @@ export class ToolRegistry {
     return this.tools.get(name)?.metadata.permissionKey;
   }
 
+  /** Check whether a tool requests per-call confirmation. */
+  requiresConfirmation(name: string): boolean {
+    return this.tools.get(name)?.metadata.requiresConfirmation === true;
+  }
+
   /** Execute a tool by name, normalizing the result to a string. */
   async execute(
     name: string,

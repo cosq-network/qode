@@ -51,13 +51,13 @@ Yes. This provider is suitable for servers and CI when:
 ## Available models
 
 Model options include:
-- `Laguna M.1 (Poolside)`
-- `Qwen3-Coder`
-- `gpt-oss-120b`
+- `poolside/laguna-m-1`
+- `qwen/qwen3-coder`
+- `openai/gpt-oss-120b`
 
 Choose with:
 ```text
-/model Laguna M.1 (Poolside)
+/model qwen/qwen3-coder
 ```
 
 Other OpenRouter models may be usable if they are available on your account and route.
@@ -66,7 +66,7 @@ Other OpenRouter models may be usable if they are available on your account and 
 
 Change the active model for the current session:
 ```text
-/model Laguna M.1 (Poolside)
+/model qwen/qwen3-coder
 ```
 
 ## Limits and notes

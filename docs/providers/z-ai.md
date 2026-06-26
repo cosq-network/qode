@@ -36,19 +36,19 @@ Use on servers or CI only when the supported auth and endpoint requirements are 
 ## Available models
 
 Current integration includes:
-- `GLM-4.7-Flash`
-- `GLM-5.2`
+- `glm-4.5`
+- `glm-4.5-flash`
 
 Choose with:
 ```text
-/model GLM-4.7-Flash
+/model glm-4.5-flash
 ```
 
 ## Switching models
 
 Change the active model for the current session:
 ```text
-/model GLM-4.7-Flash
+/model glm-4.5-flash
 ```
 
 ## Limits and notes

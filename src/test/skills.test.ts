@@ -209,6 +209,50 @@ Valid Instructions`;
       expect(skills).toHaveLength(1);
       expect(skills[0].name).toBe('Valid Skill');
     });
+
+    test('workspace skills override global and bundled skills with the same name', async () => {
+      const globalDir = path.join(os.homedir(), '.qode', 'skills');
+      const workspaceCwd = '/workspace';
+      const localDir = path.join(workspaceCwd, '.agents', 'skills');
+      const bundledDir = path.resolve(__dirname, '..', 'skills');
+
+      (mockedFs.pathExists as any).mockImplementation(async (p: string) => {
+        return p === globalDir || p === localDir || p === bundledDir || p.endsWith('SKILL.md');
+      });
+
+      (mockedFs.readdir as any).mockImplementation(async (p: string) => {
+        if (p === globalDir || p === localDir || p === bundledDir) {
+          return [{ name: 'shared-skill', isDirectory: () => true }] as any;
+        }
+        return [];
+      });
+
+      (mockedFs.readFile as any).mockImplementation(async (p: string) => {
+        if (p.startsWith(localDir)) {
+          return `---
+name: Shared Skill
+---
+workspace instructions`;
+        }
+        if (p.startsWith(globalDir)) {
+          return `---
+name: Shared Skill
+---
+global instructions`;
+        }
+        if (p.startsWith(bundledDir)) {
+          return `---
+name: Shared Skill
+---
+bundled instructions`;
+        }
+        throw new Error('Not found');
+      });
+
+      const skills = await loadSkills(workspaceCwd);
+      expect(skills).toHaveLength(1);
+      expect(skills[0].instructions).toBe('workspace instructions');
+    });
   });
 
   describe('matchSkills', () => {

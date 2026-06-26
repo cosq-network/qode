@@ -43,6 +43,29 @@ function getStringWidth(str: string): number {
   return width;
 }
 
+export function computeInputWindowStart(
+  lineLength: number,
+  cursorPos: number,
+  availableWidth: number,
+  ghostDisplayWidth = 0,
+): number {
+  const windowWidth = Math.max(1, availableWidth - ghostDisplayWidth);
+  const halfWindow = Math.max(4, Math.floor(windowWidth / 2));
+  const safeCursor = Math.max(0, Math.min(cursorPos, lineLength));
+  let start = Math.max(0, safeCursor - halfWindow);
+  const end = Math.min(lineLength, start + windowWidth);
+  if (end - start < windowWidth) {
+    start = Math.max(0, end - windowWidth);
+  }
+  return start;
+}
+
+export function computeInputCursorColumn(line: string, cursorPos: number, visibleStart: number, promptColumns = 3): number {
+  const safeCursor = Math.max(0, Math.min(cursorPos, line.length));
+  const safeStart = Math.max(0, Math.min(visibleStart, safeCursor));
+  return promptColumns + getStringWidth(line.slice(safeStart, safeCursor));
+}
+
 /**
  * ANSI-aware string slicing that doesn't split escape sequences.
  * This is a simplified version since slice-ansi is ESM-only and doesn't work with Jest.
@@ -265,6 +288,7 @@ export class TerminalChatUI {
   private completionState: CompletionContext | null = null;
   private suggestionRefreshToken: NodeJS.Immediate | null = null;
   private suggestionResolver: ((value: string, cursor: number) => CompletionContext | null) | null = null;
+  private inputWindowStart = 0;
 
   private inputHandler: ((value: string) => Promise<void>) | null = null;
 
@@ -405,8 +429,8 @@ export class TerminalChatUI {
 
     setOutputSink((entry) => this.handleOutput(entry));
     } catch (error) {
-      // If constructor fails, clean up any partially created resources
-      this.close();
+      // If constructor fails, clean up any partially created resources.
+      this.safeClose();
       throw error;
     }
   }
@@ -529,15 +553,19 @@ export class TerminalChatUI {
   }
 
   public close(): void {
+    this.safeClose();
+  }
+
+  private safeClose(): void {
     this.inputFocused = false;
 
     // Clean up event listeners to prevent memory leaks
-    if (this.keypressHandler) {
+    if (this.screen && this.keypressHandler) {
       this.screen.off('keypress', this.keypressHandler);
       this.keypressHandler = null;
     }
 
-    if (this.scrollHandler) {
+    if (this.transcriptBox && this.scrollHandler) {
       this.transcriptBox.off('scroll', this.scrollHandler);
       this.scrollHandler = null;
     }
@@ -553,8 +581,8 @@ export class TerminalChatUI {
       this.suggestionRefreshToken = null;
     }
     setOutputSink(null);
-    this.screen.program.hideCursor();
-    this.screen.destroy();
+    this.screen?.program?.hideCursor();
+    this.screen?.destroy();
   }
 
   public setTheme(name: string): void {
@@ -717,14 +745,9 @@ export class TerminalChatUI {
     const ghostDisplayWidth = getStringWidth(ghost);
     const available = Math.max(1, width - 2);
     const windowWidth = Math.max(1, available - ghostDisplayWidth);
-    const halfWindow = Math.max(4, Math.floor(windowWidth / 2));
-
-    // Use character-based approach but with display width for window calculation
-    let start = Math.max(0, cursorPos - halfWindow);
+    const start = computeInputWindowStart(line.length, cursorPos, available, ghostDisplayWidth);
     const end = Math.min(line.length, start + windowWidth);
-    if (end - start < windowWidth) {
-      start = Math.max(0, end - windowWidth);
-    }
+    this.inputWindowStart = start;
 
     // Use ANSI-aware slicing
     const before = sliceAnsiSafe(line, start, cursorPos);
@@ -786,10 +809,6 @@ export class TerminalChatUI {
     const bgHex = this.colors.transcriptBg;
     const bFg = this.colors.borderFg;
 
-    this.transcriptBox.position.bottom = this.suggestionsBox.hidden
-      ? 5
-      : 5 + (this.suggestionsBox.height as number);
-
     this.headerBox.style.bg = bgHex;
     this.transcriptBox.style.bg = bgHex;
     this.suggestionsBox.style.bg = bgHex;
@@ -808,8 +827,11 @@ export class TerminalChatUI {
     if (this.lastState) {
       this.renderHeader(this.lastState);
     }
-    this.renderTranscript();
     this.renderSuggestions();
+    this.transcriptBox.position.bottom = this.suggestionsBox.hidden
+      ? 5
+      : 5 + (this.suggestionsBox.height as number);
+    this.renderTranscript();
     this.renderInput();
     this.screen.render();
     this.positionCursor();
@@ -829,8 +851,8 @@ export class TerminalChatUI {
     const cursorPos = this.historySearchActive ? line.length : Math.max(0, Math.min(this.cursor, line.length));
     
     // Use string-width for accurate display width
-    const visibleLen = getStringWidth(line.slice(0, cursorPos));
-    const col = Math.min(screenW - 1, 3 + visibleLen);
+    const visibleStart = this.historySearchActive ? 0 : this.inputWindowStart;
+    const col = Math.min(screenW - 1, computeInputCursorColumn(line, cursorPos, visibleStart));
     this.screen.program.showCursor();
     this.screen.program.cup(inputContentRow, col);
   }
@@ -1207,9 +1229,6 @@ export class TerminalChatUI {
         this.acceptHistorySearch();
         return;
       }
-      if (this.suggestions.length > 0 && this.completionState) {
-        this.applySuggestion(this.getSelectedSuggestion());
-      }
       const next = this.inputValue.trimEnd();
       this.clearInput();
       if (this.inputHandler && next) {
@@ -1233,7 +1252,7 @@ export class TerminalChatUI {
     this.screenKeyBindings.push({ key: 'C-c', handler: () => {} });
 
     // Catch-all for printable character input
-    this.screen.on('keypress', (ch, key) => {
+    this.keypressHandler = (ch, key) => {
       if (!this.inputFocused) return;
       if (!key || !ch) return;
       if (key.ctrl || key.meta) return;
@@ -1259,7 +1278,8 @@ export class TerminalChatUI {
       this.inputValue = `${this.inputValue.slice(0, this.cursor)}${ch}${this.inputValue.slice(this.cursor)}`;
       this.cursor += ch.length;
       this.refreshCompletionState();
-    });
+    };
+    this.screen.on('keypress', this.keypressHandler);
   }
 
   private setupTranscriptScroll(): void {

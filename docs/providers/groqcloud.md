@@ -50,12 +50,13 @@ Yes. This provider is suitable for servers and CI when:
 ## Available models
 
 Current integration includes:
-- `Qwen3 (32B)`
-- `Llama 4 Scout (17B)`
+- `qwen/qwen3-32b`
+- `meta-llama/llama-4-scout-17b-16e-instruct`
+- `llama-3.3-70b-versatile`
 
 Choose with:
 ```text
-/model Qwen3 (32B)
+/model qwen/qwen3-32b
 ```
 
 Other model IDs may be usable depending on account access and provider mapping.
@@ -64,7 +65,7 @@ Other model IDs may be usable depending on account access and provider mapping.
 
 Change the active model for the current session:
 ```text
-/model Qwen3 (32B)
+/model qwen/qwen3-32b
 ```
 
 ## Limits and notes

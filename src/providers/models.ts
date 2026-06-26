@@ -1,36 +1,51 @@
 import { loadConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { listLocalModels, formatSize } from '../models/downloader.js';
+import { getAuthManager } from '../auth/manager.js';
+import {
+  PROVIDER_CATALOG,
+  getProviderCatalog,
+  type ProviderRuntime,
+} from './catalog.js';
 
-const MODEL_ALIASES: Record<string, string> = {
-  'Big Pickle': 'big-pickle',
-};
+export interface ModelMatch {
+  providerKey: string;
+  model: string;
+  label: string;
+  runtime: ProviderRuntime;
+  baseURL?: string;
+}
 
-// Default free models from the user's JSON
-export const DEFAULT_MODELS: Record<string, string[]> = {
-  'Google AI Studio': ['Gemini 3.1 Pro Preview', 'Gemini 2.5 Flash'],
-  'GitHub Models': ['DeepSeek-R1', 'o4-mini', 'Llama-4-Scout-17B'],
-  'DeepSeek API': ['DeepSeek V4-Pro', 'DeepSeek V4-Flash'],
-  'OpenRouter': ['Laguna M.1 (Poolside)', 'Qwen3-Coder', 'gpt-oss-120b'],
-  'GroqCloud': ['Qwen3 (32B)', 'Llama 4 Scout (17B)'],
-  'OpenCode': ['big-pickle', 'deepseek-v4-flash-free', 'mimo-v2-5-free', 'nemotron-3-ultra-free', 'north-mini-code-free'],
-  'OpenCode Zen': ['Big Pickle', 'deepseek-v4-flash-free', 'nemotron-3-ultra-free', 'qwen3-5-plus'],
-  'Z.ai': ['GLM-4.7-Flash', 'GLM-5.2'],
-  'OpenAI': ['gpt-5-mini'],
-};
+export const DEFAULT_MODELS: Record<string, string[]> = Object.fromEntries(
+  PROVIDER_CATALOG
+    .filter((provider) => provider.models.length > 0)
+    .map((provider) => [provider.key, provider.models.map((model) => model.label)]),
+);
+
+export function getModelCompletionEntries(): Array<{ provider: string; value: string; description: string }> {
+  return PROVIDER_CATALOG.flatMap((provider) =>
+    provider.models.map((model) => ({
+      provider: provider.key,
+      value: model.id,
+      description: model.label === model.id ? provider.key : `${provider.key} · ${model.label}`,
+    })),
+  );
+}
 
 export async function listModels(): Promise<void> {
   const config = await loadConfig();
+  const auth = getAuthManager();
   logger.info('\nAvailable models by provider:\n');
 
-  // Show cloud models
-  for (const [provider, models] of Object.entries(DEFAULT_MODELS)) {
-    const hasKey = !!config.providers[provider]?.apiKey;
-    logger.info(`${provider} ${hasKey ? '✓' : '✗ (no API key)'}`);
-    models.forEach((m) => logger.info(`  - ${m}`));
+  for (const provider of PROVIDER_CATALOG.filter((entry) => entry.models.length > 0)) {
+    const hasKey = !!config.providers[provider.key]?.apiKey || await auth.isConfigured(provider.key);
+    logger.info(`${provider.key} ${hasKey ? '✓' : '✗ (no API key)'}`);
+    for (const model of provider.models) {
+      const label = model.label === model.id ? model.id : `${model.label} (${model.id})`;
+      logger.info(`  - ${label}`);
+    }
   }
 
-  // Show local models
   logger.info('\nLocal Models (llama.cpp):');
   const localCfg = config.localModel;
   const enabled = localCfg?.enabled ?? false;
@@ -57,19 +72,33 @@ export async function listModels(): Promise<void> {
 
 export async function updateModels(): Promise<void> {
   logger.info('Fetching live model lists from provider APIs...');
-  // This would need real implementations per provider. For brevity, fallback.
-  logger.info('(Not implemented in this example – using built-in list)');
-  listModels();
+  logger.info('(Not implemented yet - using bundled provider catalog)');
+  await listModels();
 }
 
-// Helper to get provider instance for a given model
-export function findModel(modelName: string): { providerKey: string; model: string } | null {
-  const normalizedModel = MODEL_ALIASES[modelName] ?? modelName;
+function modelMatches(input: string, candidate: string): boolean {
+  return candidate.toLowerCase() === input.toLowerCase();
+}
 
-  for (const [provider, models] of Object.entries(DEFAULT_MODELS)) {
-    if (models.includes(normalizedModel) || models.includes(modelName)) {
-      return { providerKey: provider, model: normalizedModel };
+export function findModel(modelName: string): ModelMatch | null {
+  const input = modelName.trim();
+  if (!input) return null;
+
+  for (const provider of PROVIDER_CATALOG) {
+    for (const model of provider.models) {
+      const candidates = [model.id, model.label, ...(model.aliases ?? [])];
+      if (candidates.some((candidate) => modelMatches(input, candidate))) {
+        return {
+          providerKey: provider.key,
+          model: model.id,
+          label: model.label,
+          runtime: provider.runtime,
+          baseURL: provider.baseURL,
+        };
+      }
     }
   }
   return null;
 }
+
+export { PROVIDER_CATALOG, getProviderCatalog };

@@ -20,6 +20,14 @@ describe('completion context', () => {
     expect(context?.suggestions).toContain('/permissions');
   });
 
+  test('returns friendly auth command suggestions', () => {
+    const context = getCompletionContext('/auth set o', '/auth set o'.length);
+
+    expect(context?.mode).toBe('slash');
+    expect(context?.suggestions).toContain('/auth set openai');
+    expect(context?.suggestions).toContain('/auth set openrouter');
+  });
+
   test('returns mention completion range and file suggestions', () => {
     const entries = [
       { name: 'chat', isDirectory: () => true, isFile: () => false },

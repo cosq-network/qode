@@ -2,6 +2,8 @@ import { loadConfig, saveConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { downloadQwenModelSilent, listLocalModels, listDownloadProgress } from '../models/downloader.js';
 import { listModels } from '../providers/models.js';
+import { getAuthManager } from '../auth/manager.js';
+import { AUTH_PROVIDERS, resolveAuthProviderName } from '../auth/providers.js';
 
 /** Set an API key for a provider via slash command. */
 export async function setKey(provider: string, key: string): Promise<void> {
@@ -21,6 +23,68 @@ export async function clearKey(provider: string): Promise<void> {
   } else {
     logger.info(`⚠️ Provider ${provider} not found in config`);
   }
+}
+
+function formatAuthProviders(): string {
+  return Object.keys(AUTH_PROVIDERS)
+    .map((provider) => provider === 'Google AI Studio' ? 'gemini' : provider.toLowerCase().replace(/\s+/g, '-'))
+    .join(', ');
+}
+
+function resolveProviderOrReport(providerInput: string | undefined): string | null {
+  if (!providerInput) {
+    logger.info(`Usage: /auth set <provider>`);
+    logger.info(`Providers: ${formatAuthProviders()}`);
+    return null;
+  }
+
+  const provider = resolveAuthProviderName(providerInput);
+  if (!provider) {
+    logger.info(`Unknown provider "${providerInput}".`);
+    logger.info(`Providers: ${formatAuthProviders()}`);
+    return null;
+  }
+  return provider;
+}
+
+/** Handle BYOK auth commands backed by encrypted credential storage. */
+export async function authCommand(action = 'status', providerInput?: string): Promise<void> {
+  const auth = getAuthManager();
+  const normalizedAction = action.toLowerCase();
+
+  if (normalizedAction === 'status') {
+    await auth.showStatus();
+    logger.info('Use /auth set <provider> to add a key, or /auth clear <provider> to remove one.');
+    return;
+  }
+
+  if (normalizedAction === 'list') {
+    logger.info('\nAvailable BYOK providers:');
+    for (const provider of Object.values(AUTH_PROVIDERS)) {
+      const env = provider.apiKeyEnv ? ` · env: ${provider.apiKeyEnv}` : '';
+      logger.info(`  - ${provider.name} (${provider.type})${env}`);
+    }
+    logger.info('\nExamples: /auth set openai, /auth set gemini, /auth clear anthropic');
+    return;
+  }
+
+  if (normalizedAction === 'set' || normalizedAction === 'connect') {
+    const provider = resolveProviderOrReport(providerInput);
+    if (!provider) return;
+    logger.info(`Setting up ${provider}. Your key will be masked and stored encrypted.`);
+    await auth.connectProvider(provider);
+    return;
+  }
+
+  if (normalizedAction === 'clear' || normalizedAction === 'logout' || normalizedAction === 'remove') {
+    const provider = resolveProviderOrReport(providerInput);
+    if (!provider) return;
+    await auth.disconnectProvider(provider);
+    return;
+  }
+
+  logger.info('Usage: /auth [status|list|set|clear] [provider]');
+  logger.info('Examples: /auth set openai, /auth set gemini, /auth status');
 }
 
 /** Trigger silent background download of the Qwen model. */
@@ -72,6 +136,8 @@ function makeProgressBar(percent: number, width: number): string {
 export const slashCommandHandlers: Record<string, (...args: string[]) => Promise<void>> = {
   'set-key': async (provider: string, key: string) => setKey(provider, key),
   'clear-key': async (provider: string) => clearKey(provider),
+  'auth': async (action?: string, ...providerParts: string[]) => authCommand(action, providerParts.join(' ')),
+  'connect': async (...providerParts: string[]) => authCommand('set', providerParts.join(' ')),
   'download-status': async () => downloadStatus(),
   'models': async () => listModelsCommand(),
 };

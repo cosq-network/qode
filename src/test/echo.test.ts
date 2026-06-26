@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import os from 'node:os';
 import path from 'node:path';
+import { initializeTools, globalRegistry } from '../tools/index.js';
 import { updateShellEnvironment } from '../tools/echo/index.js';
 
 describe('echo shell environment tool', () => {
@@ -74,5 +75,13 @@ describe('echo shell environment tool', () => {
     });
 
     expect(result.error).toContain('valid shell environment variable name');
+  });
+
+  test('does not expose homeDir in the public tool schema', () => {
+    initializeTools();
+    const tool = globalRegistry.get('echo_update_shell_env');
+    expect(tool).toBeDefined();
+    const properties = (tool?.definition.function.parameters as any).properties;
+    expect(properties.homeDir).toBeUndefined();
   });
 });
