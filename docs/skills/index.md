@@ -6,6 +6,7 @@ This directory documents each bundled skill in Qode.
 - [clang](clang.md)
 - [cmake](cmake.md)
 - [dotnet](dotnet.md)
+- [echo](echo.md)
 - [flask](flask.md)
 - [flutter](flutter.md)
 - [gcc](gcc.md)

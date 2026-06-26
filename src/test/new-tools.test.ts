@@ -6,13 +6,14 @@ describe('new bundled tools', () => {
     initializeTools();
   });
 
-  test('registers Ionic, MSBuild, NPX, and QEMU tools', () => {
+  test('registers Ionic, MSBuild, NPX, QEMU, and echo tools', () => {
     expect(globalRegistry.getNames()).toEqual(expect.arrayContaining([
       'ionic_create_app',
       'ionic_build',
       'ionic_capacitor_run',
       'msbuild_run',
       'npx_run',
+      'echo_update_shell_env',
       'qemu_create_vm',
       'qemu_run_vm',
       'qemu_snapshot',
@@ -27,6 +28,7 @@ describe('new bundled tools', () => {
       'ionic_capacitor_run',
       'msbuild_run',
       'npx_run',
+      'echo_update_shell_env',
       'qemu_create_vm',
       'qemu_run_vm',
       'qemu_snapshot',

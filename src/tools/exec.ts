@@ -1,6 +1,7 @@
 import { exec, execFile } from 'child_process';
 import fs from 'fs-extra';
 import path from 'path';
+import { updateShellEnvironment } from './echo/index.js';
 import { loadIgnoreFilter } from './ignore.js';
 
 let cwd = process.cwd();
@@ -243,6 +244,12 @@ export async function executeToolCall(
           }
         );
       });
+    }
+
+    case 'echo_update_shell_env': {
+      const result = await updateShellEnvironment(args);
+      if (result.error) return `Error: ${result.error}`;
+      return result.output;
     }
 
     // -----------------------------------------------------------------------

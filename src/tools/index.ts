@@ -13,6 +13,7 @@ import { registerIonicTools } from './ionic/index.js';
 import { registerMsBuildTools } from './msbuild/index.js';
 import { registerNpxTools } from './npx/index.js';
 import { registerQemuTools } from './qemu/index.js';
+import { registerEchoTools } from './echo/index.js';
 
 let initialized = false;
 
@@ -34,6 +35,7 @@ export function initializeTools(): void {
   registerMsBuildTools();
   registerNpxTools();
   registerQemuTools();
+  registerEchoTools();
   initialized = true;
 }
 
