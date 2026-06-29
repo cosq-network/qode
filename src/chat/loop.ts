@@ -429,8 +429,12 @@ Commands:
       if (keepIdx >= 0 && (keepCount === undefined || isNaN(keepCount) || keepCount < 1)) {
         logger.info('Usage: /compress [--keep N]  (N = messages to keep, default 4)');
       } else {
-        await session.compressNow(keepCount);
-        await saveSession(session.id, session.toJSON());
+        try {
+          await session.compressNow(keepCount);
+          await saveSession(session.id, session.toJSON());
+        } catch (error: any) {
+          logger.error(`Compression failed: ${error.message}`);
+        }
       }
       await promptNext(session, rl, config);
       return;
@@ -1176,7 +1180,7 @@ async function activateSkills(prompt: string, session: Session): Promise<void> {
       session.messages.unshift(systemMessage);
     }
     if (matched.length > 0) {
-      logger.info(`💡 Activating skills: ${matched.map(s => s.name).join(', ')}`);
+      logger.debug(`💡 Activating skills: ${matched.map(s => s.name).join(', ')}`);
       const skillInstructions = matched
         .map(s => `=== Skill: ${s.name} ===\n${s.instructions}`)
         .join('\n\n');
