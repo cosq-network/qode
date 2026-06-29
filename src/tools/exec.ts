@@ -8,6 +8,7 @@ let cwd = process.cwd();
 
 export function setCwd(newCwd: string) {
   cwd = newCwd;
+  process.stdout.write(`\x1b]0;qode - ${path.basename(cwd)}\x07`);
 }
 
 /** Check if a command contains dangerous patterns that should be blocked. */

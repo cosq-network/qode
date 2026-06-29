@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { getQodeSubdir } from './app-paths.js';
+import { ESM_DIR } from './esm-dir.js';
 
 export interface Skill {
   name: string;
@@ -48,7 +49,7 @@ export async function loadSkills(workspaceCwd: string): Promise<Skill[]> {
   const skills: Skill[] = [];
   const globalSkillsDir = getQodeSubdir('skills');
   const workspaceSkillsDir = path.join(workspaceCwd, '.agents', 'skills');
-  const bundledSkillsDir = path.resolve(__dirname, '..', 'skills');
+  const bundledSkillsDir = path.resolve(ESM_DIR, '..', 'skills');
   
   const scanDir = async (dir: string) => {
     if (!(await fs.pathExists(dir))) return;
