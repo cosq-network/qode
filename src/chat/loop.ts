@@ -23,6 +23,8 @@ import { copyToClipboard, pasteFromClipboard } from '../utils/clipboard.js';
 import { FileBrowser } from '../utils/browser.js';
 import { getSubagentManager } from '../agents/subagent.js';
 import { buildIndex, loadIndex, searchIndex } from '../search/indexer.js';
+import { buildWorkspaceMap } from '../utils/workspace.js';
+import { detectTechStack } from '../utils/scanner.js';
 import path from 'path';
 import fs from 'fs-extra';
 import type { AgentMode } from '../config.js';
@@ -44,7 +46,7 @@ async function runTurn(session: Session, engine: ChatEngine): Promise<void> {
   const controller = new AbortController();
   activeTurnAbortController = controller;
   try {
-    await processTurn(session, engine, controller.signal);
+    await processTurn(session, engine, controller.signal, activeUI || undefined);
   } finally {
     if (activeTurnAbortController === controller) {
       activeTurnAbortController = null;
@@ -271,7 +273,10 @@ Commands:
   /deny-all                   Disable permission bypass
   /mode [plan|build]           Switch agent mode or show current mode
   /plan [show|clear|export]    Manage active plan
+  /workspace                  Show live structural digest of the active repository
+  /audit                      Review tool execution audit trail
   /task <subagent> <prompt>    Delegate task to a subagent (explore, general)
+  /compare <prompt>           Compare responses from two configured providers
   /auth status                Show BYOK auth status for all providers
   /auth list                  List supported BYOK providers
   /auth set <provider>        Store a provider API key securely
@@ -417,9 +422,34 @@ Commands:
 Skills Commands:
   /skills list                      List available skills in the public registry
   /skills search <query>            Search public registry for skills
+  /skills suggest                   Suggest skills based on repository tech stack
   /skills install <name> [--global] Install a skill from registry to workspace or global
   /skills list-local                List all installed skills
         `);
+      } else if (subCommand === 'suggest') {
+        logger.info('🔍 Scanning repository for tech stack...');
+        const stack = await detectTechStack(process.cwd());
+        if (stack.length === 0) {
+          logger.info('No specific tech stack detected.');
+        } else {
+          logger.info(`Detected stack: \x1b[36m${stack.join(', ')}\x1b[0m`);
+          logger.info('Fetching public skill registry...');
+          const registrySkills = await fetchRegistry();
+          const suggestions = registrySkills.filter(skill => {
+            const skillTags = skill.tags.map(t => t.toLowerCase());
+            return stack.some(s => skillTags.includes(s) || skill.description.toLowerCase().includes(s));
+          });
+          
+          if (suggestions.length === 0) {
+            logger.info('No matching skills found in the registry for this stack.');
+          } else {
+            logger.info('\n💡 Recommended Skills for your stack:');
+            suggestions.forEach(s => {
+              logger.info(`- \x1b[36m${s.name}\x1b[0m: ${s.description}`);
+            });
+            logger.info('\nUse /skills install <name> to add one to your workspace.');
+          }
+        }
       } else if (subCommand === 'list') {
         logger.info('Fetching public skill registry...');
         const registrySkills = await fetchRegistry();
@@ -906,10 +936,79 @@ Skills Commands:
       await promptNext(session, rl, config);
       return;
     }
+    
+    if (trimmed === '/workspace') {
+      const mapStr = await buildWorkspaceMap(process.cwd());
+      logger.info('\n' + mapStr);
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    if (trimmed === '/audit') {
+      logger.info('\n┌──────────────────────── Tool Audit Trail ────────────────────────┐');
+      if (!session.auditTrail || session.auditTrail.length === 0) {
+        logger.info('│ No tool executions recorded in this session.');
+      } else {
+        for (const entry of session.auditTrail) {
+          const riskColor = entry.riskLevel === 'high' ? '\x1b[31m' : entry.riskLevel === 'medium' ? '\x1b[33m' : '\x1b[32m';
+          logger.info(`│ [\x1b[90m${entry.timestamp.split('T')[1].slice(0, 8)}\x1b[0m] ${riskColor}${entry.riskLevel.toUpperCase()}\x1b[0m \x1b[36m${entry.toolName}\x1b[0m`);
+          const argsStr = entry.args.replace(/\n/g, ' ');
+          const args = argsStr.length > 50 ? argsStr.slice(0, 47) + '...' : argsStr;
+          logger.info(`│   args: ${args}`);
+        }
+      }
+      logger.info('└──────────────────────────────────────────────────────────────────┘');
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    if (trimmed.startsWith('/compare')) {
+      const promptText = trimmed.slice('/compare'.length).trim();
+      if (!promptText) {
+        logger.info('Usage: /compare <prompt>');
+      } else {
+        logger.info(`🔄 Comparing responses for: "${promptText}"`);
+        try {
+          const model1 = session.modelName || 'gemini-2.5-flash';
+          // Use another default for comparison if possible, or fallback
+          const model2 = 'gpt-5.4-mini'; 
+          
+          const provider1 = await engine.createProvider(model1);
+          const provider2 = await engine.createProvider(model2);
+          
+          logger.info(`Sending prompt to \x1b[36m${model1}\x1b[0m and \x1b[36m${model2}\x1b[0m in parallel...`);
+          const msg: any = [{ role: 'user', content: promptText }];
+          
+          const [res1, res2] = await Promise.all([
+            provider1.chat(msg, engine.getTools(), undefined),
+            provider2.chat(msg, engine.getTools(), undefined)
+          ]);
+          
+          logger.info('\n┌─────────────── Context Fusion Panel ───────────────┐');
+          logger.info(`│ Model 1: \x1b[36m${model1}\x1b[0m`);
+          logger.info(`│ ${res1.message.content?.replace(/\n/g, '\n│ ') ?? 'No output'}`);
+          logger.info('├────────────────────────────────────────────────────┤');
+          logger.info(`│ Model 2: \x1b[36m${model2}\x1b[0m`);
+          logger.info(`│ ${res2.message.content?.replace(/\n/g, '\n│ ') ?? 'No output'}`);
+          logger.info('└────────────────────────────────────────────────────┘');
+        } catch (e: any) {
+          logger.error(`Compare failed: ${e.message}. Note: Both models must have API keys configured.`);
+        }
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
 
     // Normal user input
     await activateSkills(trimmed, session);
-    session.addMessage({ role: 'user', content: trimmed });
+
+    let finalPrompt = trimmed;
+    if (finalPrompt.includes('@workspace')) {
+      const mapStr = await buildWorkspaceMap(process.cwd());
+      finalPrompt = finalPrompt.replace(/@workspace/g, `\n\n[Workspace Map]\n${mapStr}\n`);
+    }
+
+    session.addMessage({ role: 'user', content: finalPrompt });
     if (await ensureSessionProvider(session, engine)) {
       await runTurn(session, engine);
     }

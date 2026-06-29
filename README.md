@@ -11,6 +11,10 @@
 - **Permission System**: Granular ask/allow/deny permissions per tool, per mode, per session with built-in modes (plan, build, explore).
 - **Plan Mode**: Read-only analysis mode for planning without making changes, with progress tracking via todowrite.
 - **Subagent Flow**: Delegate tasks to specialized subagents (explore, general) with isolated sessions and restricted permissions.
+- **Context Fusion Panel**: Compare model outputs side-by-side using `/compare`.
+- **Agentic Workspace Map**: Generate structural repo digests instantly via `/workspace` or `@workspace`.
+- **Terminal Diff Theater**: Interactive before/after diff modal for accepting or reverting automated code edits.
+- **Tool Audit Trail**: Transparent session logging of all tool executions (`/audit`).
 - **LLM-Powered Semantic Search**: Search codebase by meaning using TF-IDF embeddings, not just keywords.
 - **Secure Credential Storage**: Encrypted provider credentials with masked interactive setup.
 - **Interactive File System Browser (`Ctrl+F`)**: Interactively search and traverse your project directory in-place during prompt typing.
@@ -263,6 +267,8 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 /save                        Save the current session
 /sessions                    List saved sessions
 /status                      Show session dashboard (tokens, duration, changed files)
+/workspace                   Show live structural digest of the active repository
+/audit                       Review tool execution audit trail
 ```
 
 ### Agent Behavior & Permissions
@@ -280,9 +286,11 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 ```text
 /review <file...>            Review one or more files
 /suggest <description>       Generate a code suggestion
+/compare <prompt>            Compare responses from two configured providers
 /task <subagent> <prompt>    Delegate task to a subagent
 @<subagent> <prompt>         Delegate via mention (e.g. @explore <task>)
 /@read <file_path>           Read a file into the chat output
+@workspace                   Inject workspace structural digest into the prompt
 !<command>                   Execute a shell command inline
 ```
 
@@ -298,9 +306,10 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 ### Skills & Models
 
 ```text
-/skills [cmd]                Manage skills (list, search, install, list-local)
+/skills [cmd]                Manage skills (list, search, install, list-local, suggest)
 /skills list                 List registry skills
 /skills search <query>       Search registry for skills
+/skills suggest              Suggest skills based on repository tech stack
 /skills install <name> [--global]
 /skills list-local           List workspace + global installed skills
 /update-models               Fetch latest model lists from provider APIs

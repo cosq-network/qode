@@ -99,8 +99,11 @@ Enter slash commands directly into the prompt to manage your sessions, settings,
 | `/compress` | `/compress` | Manually compress oldest message history. |
 | `/clear` | `/clear` | Wipes the current message history but retains system prompts. |
 | `/sessions` | `/sessions` | Lists all saved sessions, including dates and counts. |
+| `/workspace` | `/workspace` | Displays a live structural digest of the active repository. |
+| `/audit` | `/audit` | Review tool execution audit trail for the session. |
 | `/save` | `/save` | Manually saves current session state. |
-| `/skills` | `/skills <subcommand>` | View, search, and install local/global skill extensions. |
+| `/compare` | `/compare <prompt>` | Compare side-by-side responses from two configured models. |
+| `/skills` | `/skills <subcommand>` | View, search, suggest, and install local/global skill extensions. |
 | `/theme` | `/theme [theme-name]` | Swaps or lists current color palette configurations. |
 | `/status` | `/status` | Renders the detailed token statistics and modified files panel. |
 | `/copy` | `/copy` | Copies the last assistant response to your clipboard. |
@@ -123,9 +126,11 @@ Enter slash commands directly into the prompt to manage your sessions, settings,
 ```text
 /review <file...>            Review one or more files
 /suggest <description>       Generate a code suggestion
+/compare <prompt>            Compare responses from two configured providers
 /search [--rebuild] <query>  Semantic search across codebase
 /task <subagent> <prompt>    Delegate task to a subagent
 @<subagent> <prompt>         Delegate via mention (e.g. @explore <task>)
+@workspace                   Inject structural repository digest into the prompt
 !<command>                   Execute a shell command inline
 ```
 
@@ -191,6 +196,7 @@ You can reference files or directories directly in your prompt by typing `@` fol
 - `@src/ut` → suggests `src/utils/`
 - `@README` → suggests `README.md`
 - `@docs/` → suggests files inside the `docs/` folder.
+- `@workspace` → Injects the structural digest of the repository (configs, entry points, tests).
 
 Press **Tab** or **Enter** to accept the suggestion, which inserts the full relative path at the cursor.
 
@@ -248,6 +254,19 @@ If a directory contains a large number of files (e.g. 50 files), Qode limits the
 
 ---
 
+## 6.5 Terminal Diff Theater
+
+Whenever Qode makes an automated edit to a file on disk (via `replace_file_content` or `write_to_file`), it will intercept the change and launch the **Terminal Diff Theater**.
+
+- An interactive `blessed` modal will overlay the terminal showing the exact changes.
+- **`T`** toggles between viewing the **BEFORE EDIT** and **AFTER EDIT** state.
+- **`E`** expands the view to show the entire file instead of a truncated preview.
+- **`Up / Down`** keys scroll the view.
+- **`A` or `Enter`** accepts the change.
+- **`R` or `Escape`** immediately reverts the change back to the original content and alerts the AI that you blocked the modification.
+
+---
+
 ## 7. Skills & Remote Registry Caching
 
 Skills are modular prompt segments containing guidelines, instructions, or rules that help steer model outputs during reviews or generation tasks.
@@ -256,6 +275,7 @@ Skills are modular prompt segments containing guidelines, instructions, or rules
 - `/skills list-local`: Lists all installed global and workspace-scoped skills.
 - `/skills list`: Lists available remote packages on the registry.
 - `/skills search <query>`: Queries remote packages.
+- `/skills suggest`: Automatically scans your repo's tech stack (e.g., package.json, go.mod) and suggests relevant registry skills.
 - `/skills install <name> [--global]`: Downloads and installs a skill from the registry.
 
 ### Offline Registry Cache Fallback

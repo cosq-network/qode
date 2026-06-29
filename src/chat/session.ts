@@ -16,6 +16,16 @@ export interface CompressionEvent {
   tokensAfter: number;
 }
 
+export type AuditRiskLevel = 'low' | 'medium' | 'high';
+
+export interface AuditTrailEntry {
+  id: string;
+  timestamp: string;
+  toolName: string;
+  args: string;
+  riskLevel: AuditRiskLevel;
+}
+
 /** Default compression settings. */
 const DEFAULT_COMPRESSION: CompressionConfig = {
   keepMessages: 4,
@@ -47,6 +57,7 @@ export class Session {
   public compressionHistory: CompressionEvent[] = [];
   public mode: AgentMode = 'build';
   public activePlan: Plan | null = null;
+  public auditTrail: AuditTrailEntry[] = [];
   private compressionConfig: CompressionConfig;
 
   constructor(
@@ -62,6 +73,16 @@ export class Session {
     this.createdAt = new Date().toISOString();
     this.lastAccessed = this.createdAt;
     this.compressionConfig = DEFAULT_COMPRESSION;
+  }
+
+  /** Add an audit trail entry for a tool execution */
+  addAuditEntry(entry: Omit<AuditTrailEntry, 'id' | 'timestamp'>): void {
+    if (!this.auditTrail) this.auditTrail = [];
+    this.auditTrail.push({
+      ...entry,
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString()
+    });
   }
 
   /** Get the effective system prompt based on current mode. */
@@ -378,6 +399,7 @@ Concise summary:`;
       compressionHistory: this.compressionHistory,
       mode: this.mode,
       activePlan: this.activePlan,
+      auditTrail: this.auditTrail,
     };
   }
 }

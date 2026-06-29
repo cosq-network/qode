@@ -14,8 +14,14 @@ Qode should become the most trusted AI-native coding CLI for developer teams: fa
 
 - Multi-provider coding CLI with 11+ providers.
 - Secure credential storage in `~/.qode/auth.json`.
-- Local model support via `llama.cpp` with auto-download of Qwen GGUF models.
 - Slash commands, TUI themes, semantic search, session management, and skill installation.
+- **Context Fusion Panel**: Compare outputs from two providers via `/compare`.
+- **Agentic Workspace Map**: Live structural repo digest via `/workspace` and `@workspace`.
+- **Tool Audit Trail**: Track file edits and shell executions with risk metadata (`/audit`).
+- **Smart Skill Seeds**: Dynamic tech-stack scanning to suggest relevant skills (`/skills suggest`).
+- **Terminal Diff Theater**: Interactive before/after terminal modal to accept or revert automated edits.
+
+*(Note: Local model inferencing via llama.cpp has been completely discarded from the plan.)*
 
 ---
 
@@ -23,34 +29,31 @@ Qode should become the most trusted AI-native coding CLI for developer teams: fa
 
 These integrations are designed to make Qode stand apart from generic AI coding assistants.
 
-### 3.1 Context Fusion Panel
+### 3.1 Context Fusion Panel (COMPLETED)
 - Send the same prompt to two configured providers in parallel.
 - Render a compact diff-style summary inside the terminal UI.
 - Provide a `/compare <prompt>` command and a key toggle for quick access.
 - Goal: turn multi-provider support into a literal cross-provider comparison layer.
 
-### 3.2 Local Sensitive Guard
-- Classify prompts before they leave the machine using lightweight heuristics.
-- Automatically route secrets, credentials, and internal identifiers to the local Qwen GGUF model.
-- Force cloud providers to be skipped for these prompts.
-- Goal: position local mode as a privacy boundary, not only an offline fallback.
+### 3.2 Local Sensitive Guard (DISCARDED)
+- *This feature has been completely discarded from the plan because local model inferencing is no longer supported.*
 
-### 3.3 Agentic Workspace Map
+### 3.3 Agentic Workspace Map (COMPLETED)
 - Build a live structural digest of the active repository: entry points, configs, tests, recent changes.
 - Expose it via `/workspace` and integrate with `@`-prefix prompt suggestions.
 - Goal: reduce onboarding friction when switching codebases.
 
-### 3.4 Tool Audit Trail
+### 3.4 Tool Audit Trail (COMPLETED)
 - Capture every shell, file, and edit action during a session with risk level metadata.
 - Provide a `/audit` command for in-session review and persistent storage in session JSON files.
 - Goal: add lightweight accountability for agentic tool runs.
 
-### 3.5 Smart Skill Seeds
+### 3.5 Smart Skill Seeds (COMPLETED)
 - Scan the active repository for detected tech stack and propose candidate skills.
 - Support `/skills suggest` and guided scaffolding from registry metadata.
 - Goal: move the skill system from manual install to repo-aware persona injection.
 
-### 3.6 Terminal Diff Theater
+### 3.6 Terminal Diff Theater (COMPLETED)
 - After edits, render an animated before/after view inside the chat UI using the existing blessed terminal layer.
 - Expose accept, revert, and expand actions via bound keys.
 - Goal: improve trust in automated edits through native terminal review.
@@ -90,7 +93,6 @@ This section addresses how Qode will operate as an AI-powered coding assistant.
 
 ### 5.2 Data Minimization
 - Prompt minimization before storage and compression.
-- Local-only routing option for sensitive code.
 - No credential or key logging at any layer.
 
 ### 5.3 Human Oversight

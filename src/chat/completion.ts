@@ -121,6 +121,7 @@ export function getSlashSuggestions(input: string): string[] {
       { value: '/skills help', description: 'Show skill commands' },
       { value: '/skills list', description: 'List installed skills' },
       { value: '/skills search', description: 'Search the registry' },
+      { value: '/skills suggest', description: 'Suggest skills for this repo' },
       { value: '/skills install', description: 'Install a skill' },
       { value: '/skills list-local', description: 'Show local skills' },
     ],
@@ -175,6 +176,7 @@ export function getSlashCommandItems(): CompletionItem[] {
     { value: '/deny-all', description: 'Disable permission bypass', group: 'workspace' },
     { value: '/mode', description: 'Switch build or plan mode', group: 'session' },
     { value: '/plan', description: 'Manage the active plan', group: 'session' },
+    { value: '/workspace', description: 'Show live repository digest', group: 'workspace' },
     { value: '/task', description: 'Delegate work to a subagent', group: 'agent' },
     { value: '/connect', description: 'Set up BYOK auth provider (alias for /auth set)', group: 'auth' },
     { value: '/auth', description: 'Manage BYOK API keys securely', group: 'auth' },
@@ -195,11 +197,18 @@ function getMentionSuggestionItems(prefix: string): CompletionItem[] {
       group: 'agent',
     }));
 
+  const workspaceMatch = 'workspace'.startsWith(prefix) ? [{
+    value: 'workspace',
+    description: 'Inject structural digest of repository',
+    group: 'workspace',
+  }] : [];
+
   const fileMatches = getPathSuggestions(prefix);
 
   return Array.from(
     new Map<string, CompletionItem>([
       ...subagentMatches.map((item) => [item.value, item] as const),
+      ...workspaceMatch.map((item) => [item.value, item] as const),
       ...fileMatches.map((item) => [item.value, item] as const),
     ]).values(),
   );

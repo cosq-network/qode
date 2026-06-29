@@ -1,6 +1,7 @@
 import { Session } from './session.js';
 import { ChatEngine } from './engine.js';
 import { processToolCalls } from './tool-handler.js';
+import type { TerminalChatUI } from './terminal-ui.js';
 import { logger } from '../utils/logger.js';
 import { writeOutput } from '../utils/output.js';
 import type { StreamChunk, LLMMessage, ChatResponse } from '../providers/base.js';
@@ -63,7 +64,12 @@ async function nonStreamingChat(
  * Process a single conversation turn — send messages to the model,
  * execute any tool calls, and repeat until the model stops calling tools.
  */
-export async function processTurn(session: Session, engine: ChatEngine, signal?: AbortSignal): Promise<void> {
+export async function processTurn(
+  session: Session,
+  engine: ChatEngine,
+  signal?: AbortSignal,
+  ui?: TerminalChatUI
+): Promise<void> {
   try {
     if (signal?.aborted) {
       throw new Error('Operation cancelled.');
@@ -129,7 +135,7 @@ export async function processTurn(session: Session, engine: ChatEngine, signal?:
         break;
       }
 
-      await processToolCalls(response.message.tool_calls, session.messages, engine, signal);
+      await processToolCalls(response.message.tool_calls, session.messages, engine, signal, session, ui);
       if (signal?.aborted) {
         throw new Error('Operation cancelled.');
       }

@@ -616,6 +616,79 @@ export class TerminalChatUI {
     this.headerBox.setContent(line);
   }
 
+  public async showDiffTheater(file: string, beforeContent: string, afterContent: string): Promise<'accept' | 'revert'> {
+    return new Promise((resolve) => {
+      const box = blessed.box({
+        parent: this.screen,
+        width: '90%',
+        height: '90%',
+        top: 'center',
+        left: 'center',
+        border: 'line',
+        tags: true,
+        scrollable: true,
+        alwaysScroll: true,
+        scrollbar: { ch: '▐', style: { fg: this.colors.dimFg } },
+        style: {
+          bg: this.colors.headerBg,
+          fg: this.colors.inputFg,
+          border: { fg: this.colors.accentFg, bold: true },
+        }
+      });
+
+      let showAfter = true;
+      let expand = false;
+
+      const renderDiff = () => {
+        let contentStr = '';
+        if (expand) {
+          contentStr = showAfter ? afterContent : beforeContent;
+        } else {
+          // crude line limit for non-expanded
+          const lines = (showAfter ? afterContent : beforeContent).split('\n');
+          contentStr = lines.slice(0, 100).join('\n') + (lines.length > 100 ? '\n... (truncated, press E to expand)' : '');
+        }
+
+        const viewState = showAfter ? '{green-fg}AFTER EDIT{/}' : '{red-fg}BEFORE EDIT{/}';
+        box.setContent(`{bold}Terminal Diff Theater: ${file}{/}\nState: ${viewState} (Toggle: 'T')\nControls: [A]ccept, [R]evert, [E]xpand, [T]oggle, [Up/Down] Scroll\n\n${contentStr.replace(/\{/g, '\\{').replace(/\}/g, '\\}')}`);
+        this.screen.render();
+      };
+
+      renderDiff();
+
+      const keyHandler = (ch: any, key: any) => {
+        if (!key) return;
+        const name = key.name;
+        if (name === 'a' || name === 'enter') {
+          this.screen.remove(box);
+          ['a', 'enter', 'r', 'escape', 'e', 't', 'up', 'down'].forEach(k => this.screen.unkey(k as any, keyHandler));
+          this.screen.render();
+          resolve('accept');
+        } else if (name === 'r' || name === 'escape') {
+          this.screen.remove(box);
+          ['a', 'enter', 'r', 'escape', 'e', 't', 'up', 'down'].forEach(k => this.screen.unkey(k as any, keyHandler));
+          this.screen.render();
+          resolve('revert');
+        } else if (name === 't') {
+          showAfter = !showAfter;
+          renderDiff();
+        } else if (name === 'e') {
+          expand = !expand;
+          renderDiff();
+        } else if (name === 'up') {
+          box.scroll(-1);
+          this.screen.render();
+        } else if (name === 'down') {
+          box.scroll(1);
+          this.screen.render();
+        }
+      };
+
+      this.screen.key(['a', 'enter', 'r', 'escape', 'e', 't', 'up', 'down'], keyHandler);
+      box.focus();
+    });
+  }
+
   private renderTranscript(): void {
     const width = Math.max(MIN_TERMINAL_WIDTH, this.innerWidth());
     const height = Math.max(MIN_TERMINAL_HEIGHT, this.innerHeight());
