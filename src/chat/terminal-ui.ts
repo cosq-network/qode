@@ -343,7 +343,6 @@ export class TerminalChatUI {
       forceUnicode: true,
       autoPadding: true,
       tabSize: 2,
-      mouse: true,
     });
 
     this.screen.key(['C-q'], () => {
@@ -428,6 +427,7 @@ export class TerminalChatUI {
     this.setupInputHandling();
     this.setupTranscriptScroll();
     this.renderAll();
+
 
     setOutputSink((entry) => this.handleOutput(entry));
     } catch (error) {
@@ -1214,23 +1214,48 @@ export class TerminalChatUI {
     });
     this.screenKeyBindings.push({ key: 'tab', handler: () => {} });
 
+    let upDownTimeout: NodeJS.Timeout | null = null;
+    let upBurst = 0;
+    let downBurst = 0;
+
     this.screen.key(['up'], () => {
-      if (this.suggestions.length > 0 && !this.historySearchActive) {
-        this.suggestionIndex = (this.suggestionIndex - 1 + this.suggestions.length) % this.suggestions.length;
-        this.queueRender();
-        return;
-      }
-      this.navigateHistory(-1);
+      upBurst++;
+      if (upDownTimeout) clearTimeout(upDownTimeout);
+      upDownTimeout = setTimeout(() => {
+        if (upBurst > 1) {
+          this.transcriptBox.scroll(-(upBurst * 2));
+          this.queueRender();
+        } else if (upBurst === 1) {
+          if (this.suggestions.length > 0 && !this.historySearchActive) {
+            this.suggestionIndex = (this.suggestionIndex - 1 + this.suggestions.length) % this.suggestions.length;
+            this.queueRender();
+          } else {
+            this.navigateHistory(-1);
+          }
+        }
+        upBurst = 0;
+        downBurst = 0;
+      }, 20);
     });
-    this.screenKeyBindings.push({ key: 'up', handler: () => {} });
 
     this.screen.key(['down'], () => {
-      if (this.suggestions.length > 0 && !this.historySearchActive) {
-        this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
-        this.queueRender();
-        return;
-      }
-      this.navigateHistory(1);
+      downBurst++;
+      if (upDownTimeout) clearTimeout(upDownTimeout);
+      upDownTimeout = setTimeout(() => {
+        if (downBurst > 1) {
+          this.transcriptBox.scroll(downBurst * 2);
+          this.queueRender();
+        } else if (downBurst === 1) {
+          if (this.suggestions.length > 0 && !this.historySearchActive) {
+            this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
+            this.queueRender();
+          } else {
+            this.navigateHistory(1);
+          }
+        }
+        upBurst = 0;
+        downBurst = 0;
+      }, 20);
     });
     this.screenKeyBindings.push({ key: 'down', handler: () => {} });
 

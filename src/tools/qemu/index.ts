@@ -145,8 +145,6 @@ const qemuRunVm: RegisteredTool = {
           child.kill();
           reject(new Error(`QEMU timed out after ${timeoutMs}ms`));
         }, timeoutMs);
-        child.stdout?.on('data', (data) => process.stdout.write(data));
-        child.stderr?.on('data', (data) => process.stderr.write(data));
         child.on('error', (err) => {
           clearTimeout(timer);
           reject(new Error(err?.message ?? String(err)));

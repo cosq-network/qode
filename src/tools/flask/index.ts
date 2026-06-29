@@ -80,8 +80,6 @@ const flaskRunServer: RegisteredTool = {
 
     return new Promise<string>((resolve) => {
       const child = execFile('python3', [script], { cwd: path.dirname(script), env, maxBuffer: 10 * 1024 * 1024 });
-      child.stdout?.on('data', (data) => process.stdout.write(data));
-      child.stderr?.on('data', (data) => process.stderr.write(data));
       child.on('error', (err) => resolve('Flask run error: ' + (err?.message ?? String(err))));
       child.on('exit', (code) => resolve(code === 0 ? 'Flask server stopped.' : `Flask server exited ${code}.`));
       resolve('Flask server started.');
