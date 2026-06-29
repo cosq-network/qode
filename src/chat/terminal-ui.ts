@@ -5,6 +5,7 @@ import { setOutputSink, type OutputEntry } from '../utils/output.js';
 import { THEMES, type ThemePalette } from '../utils/themes.js';
 import type { CompletionContext } from './completion.js';
 import { renderMarkdown } from '../utils/markdown.js';
+import { getRecentFiles } from '../utils/files.js';
 
 // Constants for maintainability
 const MAX_TRANSCRIPT_LINES = 500;
@@ -247,6 +248,7 @@ export class TerminalChatUI {
   private transcriptBox: blessed.Widgets.BoxElement;
   private inputBox: blessed.Widgets.BoxElement;
   private suggestionsBox: blessed.Widgets.BoxElement;
+  private recentFilesBox: blessed.Widgets.BoxElement;
 
   private transcriptLines: string[] = [];
   private transcriptScrollOffset = 0;
@@ -327,6 +329,9 @@ export class TerminalChatUI {
   constructor() {
     this.colors = DARK_THEME;
     this.themeName = 'default';
+    // Import getRecentFiles for recent files panel
+    // (import placed at top of file)
+
 
     try {
       this.screen = blessed.screen({
@@ -373,7 +378,7 @@ export class TerminalChatUI {
       parent: this.screen,
       top: 3,
       left: 0,
-      width: '100%',
+      width: '75%',
       bottom: 7,
       border: { type: 'line' },
       tags: false,
@@ -383,6 +388,25 @@ export class TerminalChatUI {
         ch: '▐',
         style: { fg: this.colors.dimFg },
       },
+      style: {
+        fg: this.colors.inputFg,
+        bg: bgHex,
+        border: { fg: bFg, bold: true },
+      },
+      content: '',
+    });
+
+    // Panel for recent changed files (right side, 25% width)
+    this.recentFilesBox = blessed.box({
+      parent: this.screen,
+      top: 3,
+      left: '75%',
+      width: '25%',
+      bottom: 7,
+      border: { type: 'line' },
+      tags: false,
+      scrollable: true,
+      alwaysScroll: true,
       style: {
         fg: this.colors.inputFg,
         bg: bgHex,
@@ -481,7 +505,22 @@ export class TerminalChatUI {
       this.suggestions = [state.suggestion];
       this.suggestionIndex = 0;
     }
+    // Refresh recent files panel asynchronously
+    this.refreshRecentFiles();
     this.queueRender();
+  }
+
+  // Async method to update recent files panel
+  private async refreshRecentFiles(): Promise<void> {
+    try {
+      const recent = await getRecentFiles(process.cwd(), 5);
+      const content = recent.map((f: string) => `- ${f}`).join('\n');
+      this.recentFilesBox.setContent(content);
+      // Ensure UI updates
+      this.screen.render();
+    } catch (e) {
+      // Fail silently; panel will remain empty
+    }
   }
 
   public appendLine(line: string): void {

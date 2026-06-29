@@ -1,5 +1,6 @@
 // src/utils/storage.ts
 import path from 'path';
+import { logger } from './logger.js';
 import fs from 'fs-extra';
 import { getQodeSubdir, getWritableQodeSubdir } from './app-paths.js';
 
@@ -48,7 +49,10 @@ export async function listSessions(): Promise<void> {
       });
     }
   }
-  console.table(sessions);
+  // Use logger for consistent output, especially in TUI mode.
+  // Pretty‑print the session list as JSON for readability.
+  logger.info('🗂️ Saved Sessions:');
+  logger.info(JSON.stringify(sessions, null, 2));
 }
 
 export interface SessionMeta {

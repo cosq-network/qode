@@ -47,6 +47,25 @@ export class ChatEngine {
     initializeTools();
   }
 
+  /**
+   * Prompt for permission using the AGY runtime. Returns true if granted.
+   */
+  public async askPermission(action: string, reason: string): Promise<boolean> {
+    try {
+      // @ts-ignore – the runtime may provide this tool
+      const result = await (globalThis as any).ask_permission?.({
+        Action: action,
+        Reason: reason,
+        Target: '',
+        toolAction: 'Permission request',
+        toolSummary: 'Permission request',
+      });
+      return Boolean(result);
+    } catch {
+      return true; // default to allow in non‑interactive contexts
+    }
+  }
+
   /** Build the tool list, optionally starting MCP clients. */
   async rebuildAllTools(): Promise<void> {
     // Collect tool definitions from the registry
