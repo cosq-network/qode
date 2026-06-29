@@ -1,11 +1,11 @@
-import { GoogleAuthProvider, OpenAIAuthProvider, AnthropicAuthProvider, GitHubAuthProvider, AUTH_PROVIDERS } from '../auth/providers.js';
+import { GoogleAuthProvider, OpenAIAuthProvider, AnthropicAuthProvider, AUTH_PROVIDERS } from '../auth/providers.js';
 
 describe('Auth Providers', () => {
   test('all providers are registered', () => {
     expect(AUTH_PROVIDERS['Google AI Studio']).toBeDefined();
     expect(AUTH_PROVIDERS['OpenAI']).toBeDefined();
     expect(AUTH_PROVIDERS['Anthropic']).toBeDefined();
-    expect(AUTH_PROVIDERS['GitHub Copilot']).toBeDefined();
+
   });
 
   test('Google AI Studio is api-key type', () => {
@@ -25,12 +25,7 @@ describe('Auth Providers', () => {
     expect(AnthropicAuthProvider.name).toBe('Anthropic');
   });
 
-  test('GitHub Copilot is device-code type', () => {
-    expect(GitHubAuthProvider.type).toBe('device-code');
-    expect(GitHubAuthProvider.name).toBe('GitHub Copilot');
-    expect(GitHubAuthProvider.startDeviceCode).toBeDefined();
-    expect(GitHubAuthProvider.pollDeviceCode).toBeDefined();
-  });
+
 
   test('OpenAI validateCredentials rejects empty tokens', async () => {
     const result = await OpenAIAuthProvider.validateCredentials({

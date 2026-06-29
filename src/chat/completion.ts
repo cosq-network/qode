@@ -89,9 +89,9 @@ export function getSlashSuggestions(input: string): string[] {
       { value: '/auth set gemini', description: 'Store a Google AI Studio key securely' },
       { value: '/auth set anthropic', description: 'Store an Anthropic API key securely' },
       { value: '/auth set openrouter', description: 'Store an OpenRouter API key securely' },
-      { value: '/auth set groq', description: 'Store a GroqCloud API key securely' },
+
       { value: '/auth set deepseek', description: 'Store a DeepSeek API key securely' },
-      { value: '/auth set github-models', description: 'Store a GitHub Models key securely' },
+
       { value: '/auth clear openai', description: 'Remove stored OpenAI credentials' },
       { value: '/auth clear gemini', description: 'Remove stored Google AI Studio credentials' },
     ],

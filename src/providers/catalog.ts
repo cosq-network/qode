@@ -29,6 +29,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', aliases: ['Gemini 2.5 Pro'] },
       { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', aliases: ['Gemini 2.5 Flash'] },
       { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro Preview', aliases: ['Gemini 3.1 Pro Preview'] },
+      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', aliases: ['Gemini 3.5 Flash'] },
     ],
   },
   {
@@ -58,20 +59,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', aliases: ['Claude 3.5 Haiku'] },
     ],
   },
-  {
-    key: 'GitHub Models',
-    runtime: 'openai-compatible',
-    authType: 'api-key',
-    description: 'GitHub Models API key or PAT',
-    aliases: ['github', 'github-models', 'github_models'],
-    envVar: 'GITHUB_MODELS_API_KEY',
-    baseURL: 'https://models.inference.ai.azure.com',
-    models: [
-      { id: 'openai/gpt-4.1', label: 'GPT-4.1' },
-      { id: 'openai/gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-      { id: 'DeepSeek-R1', label: 'DeepSeek R1', aliases: ['DeepSeek-R1'] },
-    ],
-  },
+
   {
     key: 'DeepSeek API',
     runtime: 'openai-compatible',
@@ -94,25 +82,11 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     envVar: 'OPENROUTER_API_KEY',
     baseURL: 'https://openrouter.ai/api/v1',
     models: [
-      { id: 'openai/gpt-oss-120b', label: 'GPT OSS 120B', aliases: ['gpt-oss-120b'] },
       { id: 'qwen/qwen3-coder', label: 'Qwen3 Coder', aliases: ['Qwen3-Coder'] },
       { id: 'poolside/laguna-m-1', label: 'Laguna M.1', aliases: ['Laguna M.1 (Poolside)'] },
     ],
   },
-  {
-    key: 'GroqCloud',
-    runtime: 'openai-compatible',
-    authType: 'api-key',
-    description: 'GroqCloud API key',
-    aliases: ['groq', 'groqcloud'],
-    envVar: 'GROQ_API_KEY',
-    baseURL: 'https://api.groq.com/openai/v1',
-    models: [
-      { id: 'qwen/qwen3-32b', label: 'Qwen3 32B', aliases: ['Qwen3 (32B)'] },
-      { id: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B', aliases: ['Llama 4 Scout (17B)'] },
-      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
-    ],
-  },
+
   {
     key: 'OpenCode Zen',
     runtime: 'opencode',
@@ -124,7 +98,6 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       { id: 'big-pickle', label: 'Big Pickle', aliases: ['Big Pickle'] },
       { id: 'deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
       { id: 'nemotron-3-ultra-free', label: 'Nemotron 3 Ultra Free' },
-      { id: 'qwen3-5-plus', label: 'Qwen3 5 Plus' },
     ],
   },
   {
@@ -140,14 +113,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       { id: 'glm-4.5-flash', label: 'GLM-4.5 Flash', aliases: ['GLM-5.2'] },
     ],
   },
-  {
-    key: 'GitHub Copilot',
-    runtime: 'openai-compatible',
-    authType: 'device-code',
-    description: 'GitHub Copilot subscription via device code',
-    aliases: ['copilot', 'github-copilot'],
-    models: [],
-  },
+
 ];
 
 export function getProviderCatalog(providerKey: string): ProviderCatalogEntry | undefined {

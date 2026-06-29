@@ -58,7 +58,6 @@ Current integration includes:
 - `big-pickle`
 - `deepseek-v4-flash-free`
 - `nemotron-3-ultra-free`
-- `qwen3-5-plus`
 
 Choose with:
 ```text

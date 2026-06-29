@@ -68,11 +68,11 @@ Interactive auth flow:
 - Google AI Studio
 - OpenAI
 - Anthropic
-- GitHub Copilot
-- GitHub Models
+
+
 - DeepSeek API
 - OpenRouter
-- GroqCloud
+
 - OpenCode Zen
 - Z.ai
 

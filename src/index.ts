@@ -70,7 +70,7 @@ program
   .command('chat', { isDefault: true })
   .description('Start an interactive coding session')
   .option('-r, --resume <id>', 'Resume a specific session ID')
-  .option('-m, --model <model>', 'Initial model (default: Gemini 2.5 Flash)')
+  .option('-m, --model <model>', 'Initial model to use for this session')
   .action(async (opts) => {
     try {
       await startChatLoop(opts.resume, opts.model);
@@ -118,6 +118,23 @@ program
   });
 
 // switch default provider and model
+program
+  .command('setup')
+  .description('Launch the interactive setup wizard to select a provider, model, and configure API keys')
+  .action(async () => {
+    try {
+      const { loadConfig, saveConfig } = await import('./config.js');
+      const config = await loadConfig();
+      config.defaultModel = undefined; // Force setup on start
+      await saveConfig(config);
+      await startChatLoop();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`Error: ${message}`);
+      process.exitCode = 1;
+    }
+  });
+
 program
   .command('use <provider> <model>')
   .description('Switch default provider and model')

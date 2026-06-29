@@ -616,6 +616,10 @@ export class TerminalChatUI {
     this.headerBox.setContent(line);
   }
 
+  public showSetupFlow(): Promise<import('./setup-ui.js').SetupResult | null> {
+    return import('./setup-ui.js').then(m => m.runSetupTUI(this.screen, this.colors));
+  }
+
   public async showDiffTheater(file: string, beforeContent: string, afterContent: string): Promise<'accept' | 'revert'> {
     return new Promise((resolve) => {
       const box = blessed.box({

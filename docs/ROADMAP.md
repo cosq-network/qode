@@ -12,10 +12,12 @@ Qode should become the most trusted AI-native coding CLI for developer teams: fa
 
 ## 2. Current Capability Snapshot
 
-- Multi-provider coding CLI with 11+ providers.
+- Multi-provider coding CLI with 8 providers.
 - Secure credential storage in `~/.qode/auth.json`.
 - Slash commands, TUI themes, semantic search, session management, and skill installation.
 - **Context Fusion Panel**: Compare outputs from two providers via `/compare`.
+- [x] **Agent Mode Control**: Explicit transitions between read-only planning (`/mode plan`) and execution (`/mode build`).
+- [x] **Setup Wizard**: Screen-centric interactive TUI modal for provider and model selection on first boot.
 - **Agentic Workspace Map**: Live structural repo digest via `/workspace` and `@workspace`.
 - **Tool Audit Trail**: Track file edits and shell executions with risk metadata (`/audit`).
 - **Smart Skill Seeds**: Dynamic tech-stack scanning to suggest relevant skills (`/skills suggest`).

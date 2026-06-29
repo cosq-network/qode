@@ -52,12 +52,9 @@ This interactive screen lets you save API keys for:
 - Google AI Studio (Gemini)
 - OpenAI
 - Anthropic
-- GitHub Models
 - DeepSeek API
 - OpenRouter
-- GroqCloud
 - OpenCode Zen
-- GitHub Copilot
 
 ---
 
@@ -104,7 +101,8 @@ Enter slash commands directly into the prompt to manage your sessions, settings,
 | `/save` | `/save` | Manually saves current session state. |
 | `/compare` | `/compare <prompt>` | Compare side-by-side responses from two configured models. |
 | `/skills` | `/skills <subcommand>` | View, search, suggest, and install local/global skill extensions. |
-| `/theme` | `/theme [theme-name]` | Swaps or lists current color palette configurations. |
+| `/theme` | `/theme [name]` | List or switch visual themes |
+| `/setup` | `/setup` | Launch the Setup Wizard overlay to configure providers/models |
 | `/status` | `/status` | Renders the detailed token statistics and modified files panel. |
 | `/copy` | `/copy` | Copies the last assistant response to your clipboard. |
 | `/paste` | `/paste` | Pastes clipboard content directly as your prompt. |
@@ -318,7 +316,7 @@ These local skills automatically override global custom skills if they share mat
 
 Qode is BYOK-only for API-key providers. Credentials are set up with `/auth set <provider>` inside Qode or `qode auth` from the shell, with keys stored encrypted at `~/.qode/auth.json`. Use `/auth clear <provider>` or `qode auth --reset` to remove stored keys.
 
-GitHub Copilot is an exception: configure it with `qode auth --device github-copilot`. No subscription sign-in is available through chat commands.
+
 
 Other supported providers can be used with direct environment variables or `.env.qode` files. Full auth guidance is in [`docs/auth.md`](docs/auth.md).
 
@@ -331,14 +329,20 @@ Detailed provider notes are in `docs/providers/`:
 - [Google AI Studio](docs/providers/google-ai-studio.md)
 - [OpenAI](docs/providers/openai.md)
 - [Anthropic](docs/providers/anthropic.md)
-- [GitHub Models](docs/providers/github-models.md)
-- [GitHub Copilot](docs/providers/github-copilot.md)
 - [DeepSeek API](docs/providers/deepseek-api.md)
 - [OpenRouter](docs/providers/openrouter.md)
-- [GroqCloud](docs/providers/groqcloud.md)
 - [OpenCode Zen](docs/providers/opencode-zen.md)
 - [Z.ai](docs/providers/z-ai.md)
 - [Local model](docs/providers/local-model.md)
+
+### Cost & Free Tiers Summary
+
+If you are looking to use Qode without incurring API costs, keep the following in mind:
+
+- **Completely Free**: **OpenCode Zen** hosts endpoints that are entirely free by design (e.g., `deepseek-v4-flash-free`). 
+- **Generous Free Tiers**: **Google AI Studio** offers a massive, perpetual free tier for its Gemini models subject to rate limits.
+- **Model-Dependent**: **OpenRouter** aggregates models, and many community-hosted open-weight endpoints are available for $0.00/token.
+- **Pay-As-You-Go**: **OpenAI**, **Anthropic**, **DeepSeek API**, and **Z.ai** typically require pre-funded credits or paid subscriptions.
 
 ---
 
@@ -361,7 +365,7 @@ OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 DEEPSEEK_API_KEY=sk-...
 OPENROUTER_API_KEY=sk-or-...
-GROQ_API_KEY=...
+
 OPENCODE_ZEN_API_KEY=...
 ```
 

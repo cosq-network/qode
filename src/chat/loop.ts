@@ -114,7 +114,6 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
     const data = await loadSession(resumeId);
     modelName = data.modelName;
     session = new Session(data.id, modelName, undefined, data.messages);
-    // Restore mode and plan from saved session
     if (data.mode && (data.mode === 'build' || data.mode === 'plan')) {
       session.mode = data.mode;
     }
@@ -122,13 +121,26 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
     await session.loadCompressionConfig();
     logger.info(`Resumed session ${resumeId} with model ${modelName}`);
   } else {
-    modelName = firstModel;
-    session = new Session(uuidv4(), modelName);
+    if (!modelName && activeUI) {
+      const result = await activeUI.showSetupFlow();
+      if (result) {
+        config.providers[result.provider] = {
+          ...config.providers[result.provider],
+          apiKey: result.apiKey,
+        };
+        config.defaultModel = result.model;
+        await saveConfig(config);
+        modelName = result.model;
+        logger.info(`Setup complete. Welcome to Qode! Initializing with ${modelName}`);
+      }
+    }
+    
+    session = new Session(uuidv4(), modelName || '');
     await session.loadCompressionConfig();
     await saveSession(session.id, session.toJSON());
     logger.debug(`New session ${session.id} with ${modelName || 'no model selected'}`);
     if (activeUI && !modelName) {
-      activeUI.appendLine(chalk.yellow('No default model configured. Use /model <name> to select one.'));
+      activeUI.appendLine(chalk.yellow('No default model configured. Use /model <name> or /setup to select one.'));
     }
   }
 
@@ -245,6 +257,34 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
         logger.info('Usage: !<command>');
       } else {
         await executeShellCommand(shellCmd);
+      }
+      await promptNext(session, rl, config);
+      return;
+    }
+
+    if (trimmed === '/setup') {
+      if (activeUI) {
+        const setupResult = await activeUI.showSetupFlow();
+        if (setupResult) {
+          config.providers[setupResult.provider] = {
+            ...config.providers[setupResult.provider],
+            apiKey: setupResult.apiKey,
+          };
+          config.defaultModel = setupResult.model;
+          await saveConfig(config);
+          logger.info(`Setup complete! Switched to ${setupResult.model}`);
+          
+          session.clearProvider();
+          session.modelName = setupResult.model;
+          try {
+            const provider = await engine.createProvider(setupResult.model);
+            session.setProvider(provider);
+          } catch (e: unknown) {
+             logger.warn(e instanceof Error ? e.message : String(e));
+          }
+        }
+      } else {
+        logger.info('Setup TUI is only available in TUI mode.');
       }
       await promptNext(session, rl, config);
       return;

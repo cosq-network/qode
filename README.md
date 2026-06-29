@@ -6,7 +6,7 @@
 
 ## Key Features
 
-- **Multi-Provider & Multi-Model Support**: Connect natively to Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, Groq, GitHub Models, and OpenCode Zen.
+- **Multi-Provider & Multi-Model Support**: Connect natively to Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, OpenCode Zen, and Z.ai.
 - **Tool Registry System**: Modular, extensible tool registry with 50+ tools organized by category (file, shell, search, git, build, web, planning).
 - **Permission System**: Granular ask/allow/deny permissions per tool, per mode, per session with built-in modes (plan, build, explore).
 - **Plan Mode**: Read-only analysis mode for planning without making changes, with progress tracking via todowrite.
@@ -76,13 +76,16 @@ npm run build
 ```
 
 ### 2. Install from GitHub Packages (Optional)
-Install `qode` directly from GitHub Packages using npm:
-```bash
-npm install @cosq-network/qode --registry=https://npm.pkg.github.com
-```
-If the package is private, authenticate first with a GitHub token that has `read:packages` scope.
-Prefer using a dedicated token with the minimum required scope.
-If you have GitHub Packages configured in your `~/.npmrc`, you can omit the `--registry` flag.
+1. **Install globally**:
+   ```bash
+   npm install -g @cosq-network/qode
+   ```
+
+2. **Run Qode**:
+   ```bash
+   qode
+   ```
+   *On your first run, Qode will automatically launch an interactive **Setup Wizard** to help you select a provider, choose a model, and securely enter your API key.*
 
 ### 3. Run the CLI
 Start the CLI prompt directly using Node after building from source:
@@ -115,7 +118,7 @@ Qode is BYOK-only for API-key providers. Provider keys are loaded from environme
 ### Option A: Interactive API Key Setup (API-key providers)
 Configure API keys interactively from the CLI:
 ```bash
-qode auth
+qode setup
 ```
 This masks your input keys and stores them securely in encrypted credentials (`~/.qode/auth.json`) using the built-in auth storage. Use `qode auth --reset` to remove stored keys.
 
@@ -126,7 +129,7 @@ export GOOGLE_API_KEY=***
 export OPENAI_API_KEY=***
 export DEEPSEEK_API_KEY=***
 export OPENROUTER_API_KEY=***
-export GROQ_API_KEY=***
+export OPENROUTER_API_KEY=***
 export GITHUB_MODELS_API_KEY=***
 ```
 Qode reads these at runtime from the standard environment and never writes them to disk.
@@ -138,16 +141,16 @@ Qode reads these at runtime from the standard environment and never writes them 
 Qode is built to support a wide array of LLM endpoints. You can query models on-the-fly using the `/model <model-name>` command.
 
 ### 1. Google AI Studio (Gemini)
-Highly optimized for large context windows, code translation, and reasoning tasks.
+Highly optimized for large context windows, code translation, and reasoning tasks. Offers a generous perpetual free tier for developers.
 - **Required Env Var**: `GOOGLE_API_KEY`
 - **Supported Models**:
-  - `Gemini 2.5 Flash` (Default)
+  - `Gemini 2.5 Flash`
   - `Gemini 2.5 Pro`
-  - `Gemini 1.5 Pro`
-  - `Gemini 1.5 Flash`
+  - `Gemini 3.1 Pro Preview`
+  - `Gemini 3.5 Flash`
 
 ### 2. OpenAI API
-State-of-the-art GPT models for general programming and high-complexity reasoning.
+State-of-the-art GPT models for general programming and high-complexity reasoning. (Pay-as-you-go, no perpetual free tier).
 - **Required Env Var**: `OPENAI_API_KEY`
 - **Supported Models**:
   - `gpt-4o`
@@ -157,7 +160,7 @@ State-of-the-art GPT models for general programming and high-complexity reasonin
   - `gpt-4-turbo`
 
 ### 3. Anthropic (Claude)
-Advanced AI models for coding, analysis, and complex reasoning tasks.
+Advanced AI models for coding, analysis, and complex reasoning tasks. (Pay-as-you-go, no perpetual free tier).
 - **Required Env Var**: `ANTHROPIC_API_KEY`
 - **Supported Models**:
   - `claude-sonnet-4-20250514`
@@ -165,24 +168,14 @@ Advanced AI models for coding, analysis, and complex reasoning tasks.
   - `claude-3-5-haiku-20241022`
 
 ### 4. DeepSeek API
-Highly cost-efficient and performant code generation and reasoning models.
+Highly cost-efficient and performant code generation and reasoning models. (Pay-as-you-go).
 - **Required Env Var**: `DEEPSEEK_API_KEY`
 - **Supported Models**:
   - `deepseek-chat` (DeepSeek-V3)
   - `deepseek-reasoner` (DeepSeek-R1)
 
-### 5. GitHub Models
-Access hosted developer models via your GitHub Personal Access Token (PAT).
-- **Required Env Var**: `GITHUB_MODELS_API_KEY` (or custom PAT)
-- **Supported Models**:
-  - `gpt-4o`
-  - `gpt-4o-mini`
-  - `o1-mini`
-  - `meta-llama-3-70b`
-  - `cohere-command-r-plus`
-
-### 6. OpenRouter
-A unified router to query open-weight model architectures (Llama 3, Qwen, Claude, Mistral).
+### 5. OpenRouter
+A unified router to query open-weight model architectures (Llama 3, Qwen, Claude, Mistral). Many community-hosted models are completely free.
 - **Required Env Var**: `OPENROUTER_API_KEY`
 - **Supported Models**:
   - `anthropic/claude-3.5-sonnet`
@@ -190,35 +183,17 @@ A unified router to query open-weight model architectures (Llama 3, Qwen, Claude
   - `qwen/qwen-2.5-coder-32b-instruct`
   - `google/gemini-2.5-pro`
 
-### 7. GroqCloud
-High-speed execution of open-weight developer models.
-- **Required Env Var**: `GROQ_API_KEY`
-- **Supported Models**:
-  - `llama-3.3-70b-versatile`
-  - `mixtral-8x7b-instruct-32768`
-  - `gemma2-9b-it`
-
-### 9. GitHub Copilot
-GitHub Copilot is supported only as a device-code/subscription flow. Configure it from the CLI:
-```bash
-qode auth --device github-copilot
-```
-Usage from chat is not available for this provider.
-
-### 10. OpenCode Zen
-OpenCode Zen provides hosted models for coding and tooling tasks.
+### 6. OpenCode Zen
+OpenCode Zen provides hosted models for coding and tooling tasks. All currently integrated models are completely free to use.
 - **Required Env Var**: `OPENCODE_ZEN_API_KEY`
 - **Supported Models**:
   - `big-pickle`
   - `deepseek-v4-flash-free`
   - `nemotron-3-ultra-free`
-  - `qwen3-5-plus`
 
 ### Authentication
 
-Qode is BYOK-only for API-key providers. Credentials are set up via `qode auth`, with keys stored encrypted at `~/.qode/auth.json`. Use `qode auth --reset` to remove stored keys.
-
-GitHub Copilot is an exception: configure it with `qode auth --device github-copilot`. No subscription sign-in is available through chat commands.
+Qode is BYOK-only for API-key providers. Credentials are set up via `qode setup`, with keys stored encrypted at `~/.qode/auth.json`. Use `qode auth --reset` to remove stored keys.
 
 ---
 
@@ -287,6 +262,8 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 /review <file...>            Review one or more files
 /suggest <description>       Generate a code suggestion
 /compare <prompt>            Compare responses from two configured providers
+/setup                       Launch the interactive Setup Wizard to re-configure providers/models
+/auth status                 Check BYOK auth status across all providers
 /task <subagent> <prompt>    Delegate task to a subagent
 @<subagent> <prompt>         Delegate via mention (e.g. @explore <task>)
 /@read <file_path>           Read a file into the chat output
