@@ -4,6 +4,39 @@ import clipboardy from 'clipboardy';
 
 jest.mock('clipboardy');
 
+jest.mock('blessed', () => {
+  const mockBox = {
+    on: jest.fn(),
+    off: jest.fn(),
+    key: jest.fn(),
+    setContent: jest.fn(),
+    getContent: jest.fn(() => ''),
+    destroy: jest.fn(),
+    hide: jest.fn(),
+    show: jest.fn(),
+    style: {},
+    position: {
+      bottom: 5,
+      height: 0,
+    },
+  };
+  const mockScreen = {
+    on: jest.fn(),
+    off: jest.fn(),
+    key: jest.fn(),
+    render: jest.fn(),
+    destroy: jest.fn(),
+    program: {
+      hideCursor: jest.fn(),
+    },
+  };
+  return {
+    screen: jest.fn(() => mockScreen),
+    box: jest.fn(() => mockBox),
+  };
+});
+
+
 // Helper to create a minimal mock box with required properties
 function createMockBox(content: string, top: number = 0, left: number = 0) {
   return {
@@ -18,7 +51,13 @@ function createMockBox(content: string, top: number = 0, left: number = 0) {
     setContent: jest.fn(),
     // Event handling placeholders
     on: jest.fn(),
+    off: jest.fn(),
     emit: jest.fn(),
+    position: {
+      bottom: 5,
+      height: 0,
+    },
+    style: {},
   } as unknown as blessed.Widgets.BoxElement;
 }
 
@@ -27,6 +66,8 @@ describe('TerminalChatUI - selection copy utilities', () => {
   const dummyScreen = {
     render: jest.fn(),
     key: jest.fn(),
+    on: jest.fn(),
+    off: jest.fn(),
     destroy: jest.fn(),
   } as unknown as blessed.Widgets.Screen;
 
@@ -40,6 +81,10 @@ describe('TerminalChatUI - selection copy utilities', () => {
     // Attach mock transcript and input boxes.
     (ui as any).transcriptBox = createMockBox('line1\\nline2\\nline3', 0, 0);
     (ui as any).inputBox = createMockBox('input line', 0, 0);
+  });
+
+  afterEach(() => {
+    ui.close();
   });
 
   test('extractSelection returns correct single‑line text', () => {

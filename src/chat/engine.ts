@@ -52,7 +52,6 @@ export class ChatEngine {
    */
   public async askPermission(action: string, reason: string): Promise<boolean> {
     try {
-      // @ts-ignore – the runtime may provide this tool
       const result = await (globalThis as any).ask_permission?.({
         Action: action,
         Reason: reason,

@@ -35,7 +35,7 @@ const ionicCreateApp: RegisteredTool = {
     try {
       await fs.ensureDir(cwd);
       await new Promise<void>((resolve, reject) => {
-        const child = execFile(
+        execFile(
           'ionic',
           ['start', appName, starterType, '--type', framework, '--no-git', '--no-interactive', '--confirm'],
           { cwd, maxBuffer: 10 * 1024 * 1024 },

@@ -526,7 +526,7 @@ export class TerminalChatUI {
       this.recentFilesBox.setContent(content);
       // Ensure UI updates
       this.screen.render();
-    } catch (e) {
+    } catch {
       // Fail silently; panel will remain empty
     }
   }
@@ -1520,7 +1520,7 @@ export class TerminalChatUI {
           this.transcriptBox.setContent(content);
           this.screen.render();
         }, 1500);
-      } catch (e) {
+      } catch {
         // Fail silently if clipboard unavailable
       }
     });
@@ -1860,7 +1860,7 @@ export class TerminalChatUI {
                 const clipboardy = require('clipboardy');
                 clipboardy.writeSync(text);
                 this.showCopyAlert('Copied to clipboard');
-              } catch (e) {
+              } catch {
                 // Fail silently
               }
             }

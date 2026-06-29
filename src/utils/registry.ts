@@ -107,7 +107,7 @@ export async function removeSkill(
   skillName: string,
   workspaceCwd: string,
   global = false,
-  registryUrl = DEFAULT_REGISTRY_URL,
+  _registryUrl = DEFAULT_REGISTRY_URL,
 ): Promise<boolean> {
   const baseDir = global ? getQodeSubdir('skills') : path.join(workspaceCwd, '.agents', 'skills');
   const skillDir = path.join(baseDir, skillName.toLowerCase());
