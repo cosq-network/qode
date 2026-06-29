@@ -796,6 +796,8 @@ export class TerminalChatUI {
     const bottomOffset = suggestionsVisible ? baseBottom + Number(this.suggestionsBox.height) : baseBottom;
     this.transcriptBox.bottom = bottomOffset;
     this.recentFilesBox.bottom = bottomOffset;
+    // Re-render to apply the new layout.
+    this.screen.render();
   }
 
   private renderSuggestions(): void {
@@ -849,6 +851,9 @@ export class TerminalChatUI {
     }
 
     this.suggestionsBox.hide();
+    // Reset height to zero and update layout to keep panels equal
+    this.suggestionsBox.height = 0;
+    this.updatePanelLayout();
   }
 
   private renderHistorySearchPreview(): string {
