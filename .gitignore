@@ -34,3 +34,6 @@ temp/
 .qode/
 *.tgz
 
+# Scratch test files
+test-*
+test_*

@@ -6,6 +6,7 @@ module.exports = {
   testMatch: ['**/?(*.)+(test).[tj]s?(x)'],
   setupFilesAfterEnv: ['<rootDir>/src/test/jest.setup.ts'],
   moduleNameMapper: {
+    '^.*/esm-dir\\.js$': '<rootDir>/src/test/mocks/esm-dir.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
     '^@clack/prompts$': '<rootDir>/src/test/mocks/clack-prompts.ts',
   },
