@@ -98,8 +98,8 @@ describe('TerminalChatUI - selection copy utilities', () => {
     const start = { x: 7, y: 1 }; // after "first "
     const end = { x: 5, y: 3 };   // up to "third"
     const result = (ui as any).extractSelection(box, start, end);
-    // Expected: "line" from first line, whole second line, "thir" from third
-    expect(result).toBe('line\\nsecond line\\nthir');
+    // Expected: "line" from first line, whole second line, "third" from third
+    expect(result).toBe('line\\nsecond line\\nthird');
   });
 
   test('enableSelectionCopy registers mouse events and copies on mouseup', () => {
@@ -125,7 +125,7 @@ describe('TerminalChatUI - selection copy utilities', () => {
     mouseupCb({ x: 5, y: 1 });
 
     // Clipboard should have been called with selected text
-    expect(clipboardy.writeSync).toHaveBeenCalledWith('line');
+    expect(clipboardy.writeSync).toHaveBeenCalledWith('line1');
     // Alert should have been shown
     expect(alertSpy).toHaveBeenCalledWith('Copied to clipboard');
   });

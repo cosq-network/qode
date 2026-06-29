@@ -454,7 +454,7 @@ export class TerminalChatUI {
 
     this.setupInputHandling();
     this.setupTranscriptScroll();
-    this.enableSelectionCopy();
+    // Removed enableSelectionCopy() to allow native terminal visual text selection
     this.headerTimer = setInterval(() => {
       this.queueRender();
     }, 1000);
@@ -1314,48 +1314,22 @@ export class TerminalChatUI {
     });
     this.screenKeyBindings.push({ key: 'tab', handler: () => {} });
 
-    let upDownTimeout: NodeJS.Timeout | null = null;
-    let upBurst = 0;
-    let downBurst = 0;
-
     this.screen.key(['up'], () => {
-      upBurst++;
-      if (upDownTimeout) clearTimeout(upDownTimeout);
-      upDownTimeout = setTimeout(() => {
-        if (upBurst > 1) {
-          this.transcriptBox.scroll(-(upBurst * 2));
-          this.queueRender();
-        } else if (upBurst === 1) {
-          if (this.suggestions.length > 0 && !this.historySearchActive) {
-            this.suggestionIndex = (this.suggestionIndex - 1 + this.suggestions.length) % this.suggestions.length;
-            this.queueRender();
-          } else {
-            this.navigateHistory(-1);
-          }
-        }
-        upBurst = 0;
-        downBurst = 0;
-      }, 20);
+      if (this.suggestions.length > 0 && !this.historySearchActive) {
+        this.suggestionIndex = (this.suggestionIndex - 1 + this.suggestions.length) % this.suggestions.length;
+        this.queueRender();
+      } else {
+        this.navigateHistory(-1);
+      }
     });
 
     this.screen.key(['down'], () => {
-      downBurst++;
-      if (upDownTimeout) clearTimeout(upDownTimeout);
-      upDownTimeout = setTimeout(() => {
-        if (downBurst > 1) {
-          this.transcriptBox.scroll(downBurst * 2);
-          this.queueRender();
-        } else if (downBurst === 1) {
-          if (this.suggestions.length > 0 && !this.historySearchActive) {
-            this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
-            this.queueRender();
-          } else {
-            this.navigateHistory(1);
-          }
-        }
-        upBurst = 0;
-        downBurst = 0;
-      }, 20);
+      if (this.suggestions.length > 0 && !this.historySearchActive) {
+        this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
+        this.queueRender();
+      } else {
+        this.navigateHistory(1);
+      }
     });
     this.screenKeyBindings.push({ key: 'down', handler: () => {} });
 
@@ -1497,14 +1471,9 @@ export class TerminalChatUI {
   }
 
   private setupTranscriptScroll(): void {
-    this.transcriptBox.on('wheeldown', () => {
-      // Scroll down (newer messages)
-      this.scrollBy(-3);
-    });
-    this.transcriptBox.on('wheelup', () => {
-      // Scroll up (older messages)
-      this.scrollBy(3);
-    });
+    // Note: Mouse wheel events are intentionally removed so that native terminal
+    // text selection (traditional visual highlighting) is not overridden by blessed mouse capturing.
+
     // Enable clipboard copy of transcript content (Ctrl+Y)
     this.screen.key(['C-y'], () => {
       try {
@@ -1525,31 +1494,27 @@ export class TerminalChatUI {
       }
     });
 
-    // Scroll shortcuts for transcriptBox (compatible across OS)
+    // User-friendly keyboard shortcuts for scrolling transcriptBox
     const scrollStep = 1;
-    this.screen.key(['up', 'k'], () => {
-      this.transcriptBox.scroll(-scrollStep);
-      this.screen.render();
+    this.screen.key(['S-up'], () => {
+      this.scrollBy(scrollStep);
     });
-    this.screen.key(['down', 'j'], () => {
-      this.transcriptBox.scroll(scrollStep);
-      this.screen.render();
+    this.screen.key(['S-down'], () => {
+      this.scrollBy(-scrollStep);
     });
     this.screen.key(['pageup'], () => {
-      this.transcriptBox.scroll(-Number(this.transcriptBox.height));
-      this.screen.render();
+      this.scrollBy(Math.max(3, Number(this.transcriptBox.height) - 2));
     });
     this.screen.key(['pagedown'], () => {
-      this.transcriptBox.scroll(Number(this.transcriptBox.height));
-      this.screen.render();
+      this.scrollBy(-Math.max(3, Number(this.transcriptBox.height) - 2));
     });
     this.screen.key(['home'], () => {
-      this.transcriptBox.scrollTo(0);
-      this.screen.render();
+      this.transcriptScrollOffset = Number.MAX_SAFE_INTEGER;
+      this.isAtBottom = false;
+      this.queueRender();
     });
     this.screen.key(['end'], () => {
-      this.transcriptBox.scrollTo(this.transcriptBox.getScrollHeight());
-      this.screen.render();
+      this.scrollToBottom();
     });
 
     this.scrollHandler = () => {
@@ -1902,18 +1867,18 @@ export class TerminalChatUI {
     endY = Math.max(0, Math.min(endY, lines.length - 1));
 
     if (startY === endY) {
-      const line = lines[startY] || '';
+      const line = stripAnsi(lines[startY] || '');
       const s = Math.max(0, Math.min(startX, line.length));
-      const e = (startX > 0) ? endX + 1 : endX;
+      const e = Math.max(0, Math.min(endX + 1, line.length));
       return line.substring(s, e);
     } else {
       const result: string[] = [];
       for (let y = startY; y <= endY; y++) {
-        const line = lines[y] || '';
+        const line = stripAnsi(lines[y] || '');
         if (y === startY) {
-          result.push(line.substring(startX));
+          result.push(line.substring(Math.max(0, Math.min(startX, line.length))));
         } else if (y === endY) {
-          result.push(line.substring(0, endX));
+          result.push(line.substring(0, Math.max(0, Math.min(endX + 1, line.length))));
         } else {
           result.push(line);
         }
