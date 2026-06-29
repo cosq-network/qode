@@ -379,7 +379,8 @@ export class TerminalChatUI {
       top: 3,
       left: 0,
       width: '75%',
-      bottom: 7,
+      // Bottom offset will be adjusted dynamically based on suggestions visibility.
+      bottom: 5,
       border: { type: 'line' },
       tags: false,
       scrollable: true,
@@ -402,7 +403,8 @@ export class TerminalChatUI {
       top: 3,
       left: '75%',
       width: '25%',
-      bottom: 7,
+      // Bottom offset will be adjusted dynamically.
+      bottom: 5,
       border: { type: 'line' },
       tags: false,
       scrollable: true,
@@ -645,8 +647,8 @@ export class TerminalChatUI {
     const displayModel = state.modelName || 'No model selected';
     const left = `${chalk.hex(this.colors.accentFg)('◆')} ${chalk.bold(displayModel)}${provider}  ${modeDot}`;
     const tokens = state.tokenUsage;
-    const recent = state.recentFiles ? chalk.hex(this.colors.dimFg)(state.recentFiles) : '';
-    const right = `${tokens}${recent ? `  ${recent}` : ''}`;
+    // Do not display recent files in the header; they are shown in the side panel.
+    const right = `${tokens}`;
 
     const width = this.innerWidth();
     const leftLen = stripAnsi(left).length;
@@ -787,21 +789,34 @@ export class TerminalChatUI {
     }
   }
 
+  private updatePanelLayout(): void {
+    // Determine if suggestions box is visible (not hidden) and has a numeric height.
+    const suggestionsVisible = !this.suggestionsBox.hidden && Number(this.suggestionsBox.height) > 0;
+    const baseBottom = 5; // Height of input box area.
+    const bottomOffset = suggestionsVisible ? baseBottom + Number(this.suggestionsBox.height) : baseBottom;
+    this.transcriptBox.bottom = bottomOffset;
+    this.recentFilesBox.bottom = bottomOffset;
+  }
+
   private renderSuggestions(): void {
     if (this.historySearchActive) {
       const content = this.renderHistorySearchPreview();
       this.suggestionsBox.setContent(content);
       this.suggestionsBox.height = 3;
       this.suggestionsBox.show();
+      this.updatePanelLayout();
       return;
     }
-
+      
     if (this.completionState && this.suggestions.length > 0) {
       const total = this.suggestions.length;
-      const maxVisible = Math.min(6, total, Math.max(2, Math.floor((Number(this.screen.height) - 8) / 2)));
-      const half = Math.floor(maxVisible / 2);
-
-      let start = this.suggestionIndex - half;
+      // Determine how many suggestions can be shown based on screen height.
+      const maxVisible = Math.min(
+        total,
+        Math.max(2, Math.floor((Number(this.screen.height) - 8) / 2))
+      );
+      // Center the current suggestion in the view when possible.
+      let start = this.suggestionIndex - Math.floor(maxVisible / 2);
       if (start < 0) start = 0;
       if (start + maxVisible > total) start = Math.max(0, total - maxVisible);
 
@@ -829,6 +844,7 @@ export class TerminalChatUI {
       const sugHeight = Math.max(3, lines.length + 2);
       this.suggestionsBox.height = sugHeight;
       this.suggestionsBox.show();
+      this.updatePanelLayout();
       return;
     }
 
