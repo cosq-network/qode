@@ -34,7 +34,7 @@ export function runSetupTUI(screen: blessed.Widgets.Screen, colors: any): Promis
       tags: true,
     });
 
-    const logo = (blessed as any).image({
+    (blessed as any).image({
       parent: overlay,
       top: 1,
       left: 'center',

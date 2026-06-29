@@ -14,7 +14,7 @@ marked.use(markedTerminal({
 export function renderMarkdown(text: string): string {
   try {
     return marked.parse(text) as string;
-  } catch (err) {
+  } catch {
     return text;
   }
 }
