@@ -14,7 +14,8 @@ import { ChatEngine } from './engine.js';
 import { setCwd } from '../tools/exec.js';
 import { processTurn } from './processor.js';
 import { loadSkills, matchSkills } from '../utils/skills.js';
-import { fetchRegistry, searchRegistry, installSkill } from '../utils/registry.js';
+// Updated imports to include removeSkill
+import { fetchRegistry, searchRegistry, installSkill, removeSkill } from '../utils/registry.js';
 // import { runWithSpinner as _runWithSpinner } from '../utils/spinner.js';
 import { handleSlashCommand } from '../commands/slash.js';
 import { getRecentFiles } from '../utils/files.js';
@@ -468,6 +469,7 @@ Skills Commands:
   /skills search <query>            Search public registry for skills
   /skills suggest                   Suggest skills based on repository tech stack
   /skills install <name> [--global] Install a skill from registry to workspace or global
+  /skills remove <name> [--global]  Remove an installed skill
   /skills list-local                List all installed skills
         `);
       } else if (subCommand === 'suggest') {
@@ -495,7 +497,7 @@ Skills Commands:
           }
         }
       } else if (subCommand === 'list') {
-        logger.info('Fetching public skill registry...');
+        logger.debug('Fetching public skill registry...');
         const registrySkills = await fetchRegistry();
         if (registrySkills.length === 0) {
           logger.info('No skills found in remote registry.');
@@ -510,7 +512,7 @@ Skills Commands:
         if (!query) {
           logger.info('Usage: /skills search <query>');
         } else {
-          logger.info(`Searching public registry for "${query}"...`);
+          logger.debug(`Searching public registry for "${query}"...`);
           const matched = await searchRegistry(query);
           if (matched.length === 0) {
             logger.info('No matching skills found.');
@@ -536,11 +538,54 @@ Skills Commands:
         if (!skillName) {
           logger.info('Usage: /skills install <name> [--global]');
         } else {
-          logger.info(`Installing skill "${skillName}"...`);
-          const success = await installSkill(skillName, process.cwd(), isGlobal);
-          if (success) {
-            logger.info(`Skill "${skillName}" successfully installed.`);
+          try {
+            const hasPermission = await engine.askPermission('file_write', `Install skill "${skillName}"`);
+            if (!hasPermission) {
+              logger.warn(`Permission denied: Cannot install skill "${skillName}".`);
+            } else {
+              logger.info(`Installing skill "${skillName}"...`);
+              const success = await installSkill(skillName, process.cwd(), isGlobal);
+              if (success) {
+                logger.info(`Skill "${skillName}" successfully installed.`);
+              } else {
+                logger.error(`Failed to install skill "${skillName}".`);
+              }
+            }
+          } catch (e: any) {
+            logger.error(`Error during installation: ${e.message}`);
           }
+        }
+      } else if (subCommand === 'remove') {
+        const removeArgs = parts.slice(2);
+        let isGlobal = false;
+        const nameParts: string[] = [];
+        removeArgs.forEach(arg => {
+          if (arg === '--global' || arg === '-g') {
+            isGlobal = true;
+          } else {
+            nameParts.push(arg);
+          }
+        });
+        const skillName = nameParts.join(' ').trim();
+        if (!skillName) {
+  logger.info('Usage: /skills remove <name> [--global]');
+} else {
+  const permission = await engine.askPermission('file_write', `Remove skill "${skillName}"`);
+  if (!permission) {
+    logger.warn(`Permission denied: Cannot remove skill "${skillName}".`);
+  } else {
+    try {
+      const success = await removeSkill(skillName, process.cwd(), isGlobal);
+      if (success) {
+        logger.info(`Skill "${skillName}" removed successfully.`);
+      } else {
+        logger.error(`Skill "${skillName}" not found or could not be removed.`);
+      }
+    } catch (e: any) {
+      logger.error(`Error removing skill: ${e.message}`);
+    }
+  }
+
         }
       } else if (subCommand === 'list-local') {
         try {

@@ -102,3 +102,26 @@ export async function installSkill(
     return false;
   }
 }
+
+export async function removeSkill(
+  skillName: string,
+  workspaceCwd: string,
+  global = false,
+  registryUrl = DEFAULT_REGISTRY_URL,
+): Promise<boolean> {
+  const baseDir = global ? getQodeSubdir('skills') : path.join(workspaceCwd, '.agents', 'skills');
+  const skillDir = path.join(baseDir, skillName.toLowerCase());
+  try {
+    const exists = await fs.pathExists(skillDir);
+    if (!exists) {
+      logger.info(`Skill "${skillName}" not found in ${global ? 'global' : 'workspace'} directory.`);
+      return false;
+    }
+    await fs.remove(skillDir);
+    logger.info(`✔ Removed skill "${skillName}" from ${global ? 'global' : 'workspace'} directory.`);
+    return true;
+  } catch (error: any) {
+    logger.error(`Failed to remove skill "${skillName}": ${error.message}`);
+    return false;
+  }
+}
