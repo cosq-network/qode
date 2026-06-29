@@ -244,6 +244,8 @@ const DARK_THEME: ThemeColors = {
 
 export class TerminalChatUI {
   private screen: blessed.Widgets.Screen;
+  private startTime = Date.now();
+  private headerTimer: NodeJS.Timeout | null = null;
   private headerBox: blessed.Widgets.BoxElement;
   private transcriptBox: blessed.Widgets.BoxElement;
   private inputBox: blessed.Widgets.BoxElement;
@@ -452,6 +454,10 @@ export class TerminalChatUI {
 
     this.setupInputHandling();
     this.setupTranscriptScroll();
+    this.enableSelectionCopy();
+    this.headerTimer = setInterval(() => {
+      this.queueRender();
+    }, 1000);
     this.renderAll();
 
 
@@ -619,6 +625,10 @@ export class TerminalChatUI {
 
     this.clearInterruptState();
     this.clearEscapeCancelState();
+    if (this.headerTimer) {
+      clearInterval(this.headerTimer);
+      this.headerTimer = null;
+    }
     if (this.suggestionRefreshToken) {
       clearImmediate(this.suggestionRefreshToken);
       this.suggestionRefreshToken = null;
@@ -636,19 +646,49 @@ export class TerminalChatUI {
   }
 
   private renderHeader(state: ChatUIState): void {
+    const appName = chalk.bold.hex(this.colors.accentFg)('qode');
+    const separator = chalk.hex(this.colors.dimFg)(' │ ');
+
     const modeDot = state.mode === 'plan'
       ? chalk.hex('#e0af68')('○')
       : chalk.hex('#9ece6a')('●');
 
-    const provider = state.providerName !== 'N/A'
-      ? ` ${chalk.hex(this.colors.dimFg)(state.providerName)}`
+    const provider = state.providerName && state.providerName !== 'N/A'
+      ? ` ${chalk.hex(this.colors.dimFg)(`(${state.providerName})`)}`
       : '';
 
     const displayModel = state.modelName || 'No model selected';
-    const left = `${chalk.hex(this.colors.accentFg)('◆')} ${chalk.bold(displayModel)}${provider}  ${modeDot}`;
-    const tokens = state.tokenUsage;
-    // Do not display recent files in the header; they are shown in the side panel.
-    const right = `${tokens}`;
+    
+    const elapsedSecs = Math.floor((Date.now() - this.startTime) / 1000);
+    const h = Math.floor(elapsedSecs / 3600);
+    const m = Math.floor((elapsedSecs % 3600) / 60);
+    const s = elapsedSecs % 60;
+    const durationStr = h > 0
+      ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+      : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+    const duration = chalk.hex(this.colors.infoFg || '#7dcfff')(`🕒 ${durationStr}`);
+
+    const left = ` ${appName}${separator}${chalk.bold(displayModel)}${provider}${separator}${modeDot}${separator}${duration}`;
+
+    let tokenStr = '0 / 0';
+    if (state.tokenUsage) {
+      const parts = state.tokenUsage.split('/');
+      if (parts.length === 2) {
+        const used = parseInt(parts[0].trim(), 10) || 0;
+        const max = parseInt(parts[1].trim(), 10) || 0;
+        const usedFormatted = used.toLocaleString();
+        const maxFormatted = max.toLocaleString();
+        if (max > 0) {
+          const percent = (used / max) * 100;
+          const tokenPercentStr = `${percent.toFixed(2)}%`;
+          tokenStr = `${usedFormatted} / ${maxFormatted} (${tokenPercentStr})`;
+        } else {
+          tokenStr = `${usedFormatted} tokens`;
+        }
+      }
+    }
+    const right = `${chalk.hex(this.colors.dimFg)('Tokens: ')}${chalk.bold(tokenStr)} `;
 
     const width = this.innerWidth();
     const leftLen = stripAnsi(left).length;
@@ -1465,6 +1505,52 @@ export class TerminalChatUI {
       // Scroll up (older messages)
       this.scrollBy(3);
     });
+    // Enable clipboard copy of transcript content (Ctrl+Y)
+    this.screen.key(['C-y'], () => {
+      try {
+        const content = this.transcriptBox.getContent();
+        // Write to system clipboard using clipboardy
+        const clipboardy = require('clipboardy');
+        clipboardy.writeSync(content);
+        // Optional visual feedback
+        this.transcriptBox.setContent(content + '\n[Copied to clipboard]');
+        this.screen.render();
+        setTimeout(() => {
+          // Remove feedback after a short delay
+          this.transcriptBox.setContent(content);
+          this.screen.render();
+        }, 1500);
+      } catch (e) {
+        // Fail silently if clipboard unavailable
+      }
+    });
+
+    // Scroll shortcuts for transcriptBox (compatible across OS)
+    const scrollStep = 1;
+    this.screen.key(['up', 'k'], () => {
+      this.transcriptBox.scroll(-scrollStep);
+      this.screen.render();
+    });
+    this.screen.key(['down', 'j'], () => {
+      this.transcriptBox.scroll(scrollStep);
+      this.screen.render();
+    });
+    this.screen.key(['pageup'], () => {
+      this.transcriptBox.scroll(-Number(this.transcriptBox.height));
+      this.screen.render();
+    });
+    this.screen.key(['pagedown'], () => {
+      this.transcriptBox.scroll(Number(this.transcriptBox.height));
+      this.screen.render();
+    });
+    this.screen.key(['home'], () => {
+      this.transcriptBox.scrollTo(0);
+      this.screen.render();
+    });
+    this.screen.key(['end'], () => {
+      this.transcriptBox.scrollTo(this.transcriptBox.getScrollHeight());
+      this.screen.render();
+    });
 
     this.scrollHandler = () => {
       const scrollPerc = this.transcriptBox.getScrollPerc();
@@ -1741,5 +1827,121 @@ export class TerminalChatUI {
   private invalidateWrapCache(): void {
     this.wrapCache = [];
     this.lastWrapWidth = 0;
+  }
+
+  private enableSelectionCopy(): void {
+    let startEvent: any = null;
+
+    const setupBoxEvents = (box: any) => {
+      box.on('mousedown', (data: any) => {
+        startEvent = data;
+      });
+
+      box.on('mouseup', (data: any) => {
+        if (!startEvent) return;
+        const endEvent = data;
+
+        if (
+          typeof startEvent.x === 'number' &&
+          typeof startEvent.y === 'number' &&
+          typeof endEvent.x === 'number' &&
+          typeof endEvent.y === 'number'
+        ) {
+          const borderOffset = 1;
+          const startX = Math.max(1, startEvent.x - (box.al || 0) - borderOffset + 1);
+          const startY = Math.max(1, startEvent.y - (box.at || 0) - borderOffset + 1);
+          const endX = Math.max(1, endEvent.x - (box.al || 0) - borderOffset + 1);
+          const endY = Math.max(1, endEvent.y - (box.at || 0) - borderOffset + 1);
+
+          if (startX !== endX || startY !== endY) {
+            const text = this.extractSelection(box, { x: startX, y: startY }, { x: endX, y: endY });
+            if (text && text.trim().length > 0) {
+              try {
+                const clipboardy = require('clipboardy');
+                clipboardy.writeSync(text);
+                this.showCopyAlert('Copied to clipboard');
+              } catch (e) {
+                // Fail silently
+              }
+            }
+          }
+        }
+        startEvent = null;
+      });
+    };
+
+    if (this.transcriptBox) {
+      setupBoxEvents(this.transcriptBox);
+    }
+    if (this.inputBox) {
+      setupBoxEvents(this.inputBox);
+    }
+  }
+
+  private extractSelection(
+    box: any,
+    start: { x: number; y: number },
+    end: { x: number; y: number }
+  ): string {
+    const content = box.getContent ? box.getContent() : '';
+    const separator = (content.includes('\\n') && !content.includes('\n')) ? '\\n' : '\n';
+    const lines = content.split(/\r?\n|\\n/);
+    if (lines.length === 0) return '';
+
+    let startY = start.y - 1;
+    let endY = end.y - 1;
+    let startX = start.x - 1;
+    let endX = end.x - 1;
+
+    if (startY > endY || (startY === endY && startX > endX)) {
+      const tempY = startY; startY = endY; endY = tempY;
+      const tempX = startX; startX = endX; endX = tempX;
+    }
+
+    startY = Math.max(0, Math.min(startY, lines.length - 1));
+    endY = Math.max(0, Math.min(endY, lines.length - 1));
+
+    if (startY === endY) {
+      const line = lines[startY] || '';
+      const s = Math.max(0, Math.min(startX, line.length));
+      const e = (startX > 0) ? endX + 1 : endX;
+      return line.substring(s, e);
+    } else {
+      const result: string[] = [];
+      for (let y = startY; y <= endY; y++) {
+        const line = lines[y] || '';
+        if (y === startY) {
+          result.push(line.substring(startX));
+        } else if (y === endY) {
+          result.push(line.substring(0, endX));
+        } else {
+          result.push(line);
+        }
+      }
+      return result.join(separator);
+    }
+  }
+
+  private showCopyAlert(message: string): void {
+    const alertBox = blessed.box({
+      parent: this.screen,
+      top: 'center',
+      left: 'center',
+      width: Math.max(24, message.length + 4),
+      height: 3,
+      border: { type: 'line' },
+      style: {
+        fg: this.colors.accentFg || '#7aa2f7',
+        bg: this.colors.transcriptBg,
+        border: { fg: this.colors.accentFg || '#7aa2f7' }
+      },
+      content: `\n ${message}`,
+      align: 'center'
+    });
+    this.screen.render();
+    setTimeout(() => {
+      alertBox.destroy();
+      this.screen.render();
+    }, 1500);
   }
 }
