@@ -448,7 +448,16 @@ Commands:
       return;
     }
     if (trimmed === '/sessions') {
-      await listSessions();
+      const permission = await engine.askPermission('file_read', 'List sessions');
+      if (!permission) {
+        logger.warn('Permission denied: cannot list sessions.');
+      } else {
+        try {
+          await listSessions();
+        } catch (e: any) {
+          logger.error(`Failed to list sessions: ${e.message}`);
+        }
+      }
       await promptNext(session, rl, config);
       return;
     }
