@@ -20,8 +20,8 @@
 - **Interactive File System Browser (`Ctrl+F`)**: Interactively search and traverse your project directory in-place during prompt typing.
 - **Inline Shell Execution (`!`)**: Execute shell commands directly inside the chat prompt with built-in safety filtering.
 - **Context Compression & Sessions**: Automatically or manually compress conversational histories with intelligent pruning.
-- **Skill Module Integration**: Inject workflow-specific rules and instruction scripts with local workspace and remote registry support.
-- **Default Theme**: `Default`
+- **Interactive Terminal UI**: Dynamic header panel tracks session tokens and elapsed time. Scrollable transcript with full markdown rendering, intuitive keyboard navigation (Shift+Up/Down, PageUp/Down), and native OS text selection.
+- **Skill Module Integration**: Inject workflow-specific rules and instruction scripts with local workspace and remote registry support, now with skill removal support.
 - **Available Themes**: `Default`, `Ocean`, `Monochrome`, `Sunset`, `Forest`, `Catppuccin Mocha`, `Nord`
 - **Theme Command**: `/theme <name>` or `/theme` to list themes
 - **Native Clipboard Hotkeys**: Copy last response (`Ctrl+K`) and paste as prompt (`Ctrl+G`).

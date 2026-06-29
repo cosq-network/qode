@@ -245,6 +245,7 @@ const DARK_THEME: ThemeColors = {
 export class TerminalChatUI {
   private screen: blessed.Widgets.Screen;
   private startTime = Date.now();
+  private sessionDurationSecs = 0;
   private headerTimer: NodeJS.Timeout | null = null;
   private headerBox: blessed.Widgets.BoxElement;
   private transcriptBox: blessed.Widgets.BoxElement;
@@ -352,6 +353,12 @@ export class TerminalChatUI {
       tabSize: 2,
     });
 
+    // Disable Alternate Scroll Mode: This prevents terminal emulators (like iTerm2/macOS Terminal) 
+    // from translating mouse scroll wheel events into Up/Down arrow keys when in the alternate screen.
+    // This allows us to keep traditional visual text highlighting (mouse tracking disabled) 
+    // without the input box accidentally reacting to mouse scrolls.
+    process.stdout.write('\x1b[?1007l');
+
     this.screen.key(['C-q'], () => {
       this.close();
       process.exit(0);
@@ -454,10 +461,7 @@ export class TerminalChatUI {
 
     this.setupInputHandling();
     this.setupTranscriptScroll();
-    // Removed enableSelectionCopy() to allow native terminal visual text selection
-    this.headerTimer = setInterval(() => {
-      this.queueRender();
-    }, 1000);
+    this.enableSelectionCopy(); // Re-enabled to capture mouse events and stop scroll-to-arrow translation
     this.renderAll();
 
 
@@ -508,6 +512,7 @@ export class TerminalChatUI {
 
   public setState(state: ChatUIState): void {
     this.lastState = state;
+    this.sessionDurationSecs = Math.floor((Date.now() - this.startTime) / 1000);
     this.renderHeader(state);
     if (state.suggestion) {
       this.suggestions = [state.suggestion];
@@ -659,13 +664,11 @@ export class TerminalChatUI {
 
     const displayModel = state.modelName || 'No model selected';
     
-    const elapsedSecs = Math.floor((Date.now() - this.startTime) / 1000);
+    const elapsedSecs = this.sessionDurationSecs;
     const h = Math.floor(elapsedSecs / 3600);
     const m = Math.floor((elapsedSecs % 3600) / 60);
     const s = elapsedSecs % 60;
-    const durationStr = h > 0
-      ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-      : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    const durationStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 
     const duration = chalk.hex(this.colors.infoFg || '#7dcfff')(`🕒 ${durationStr}`);
 
@@ -1233,6 +1236,7 @@ export class TerminalChatUI {
   private setupInputHandling(): void {
     const inputKeys: Record<string, (ch: string, key: any) => boolean> = {
       'C-k': () => { void this.actions.onCopy?.(); return true; },
+      'C-b': () => { void this.actions.onCopy?.(); return true; },
       'C-g': () => { void this.actions.onPaste?.(); return true; },
       'C-f': () => { void this.actions.onBrowser?.(); return true; },
       'C-o': () => { void this.sessionControls.onToggleMode?.(); return true; },
@@ -1314,22 +1318,42 @@ export class TerminalChatUI {
     });
     this.screenKeyBindings.push({ key: 'tab', handler: () => {} });
 
+    let upDownTimeout: NodeJS.Timeout | null = null;
+    let upBurst = 0;
+    let downBurst = 0;
+
     this.screen.key(['up'], () => {
-      if (this.suggestions.length > 0 && !this.historySearchActive) {
-        this.suggestionIndex = (this.suggestionIndex - 1 + this.suggestions.length) % this.suggestions.length;
-        this.queueRender();
-      } else {
-        this.navigateHistory(-1);
-      }
+      upBurst++;
+      if (upDownTimeout) clearTimeout(upDownTimeout);
+      upDownTimeout = setTimeout(() => {
+        if (upBurst === 1) {
+          if (this.suggestions.length > 0 && !this.historySearchActive) {
+            this.suggestionIndex = (this.suggestionIndex - 1 + this.suggestions.length) % this.suggestions.length;
+            this.queueRender();
+          } else {
+            this.navigateHistory(-1);
+          }
+        }
+        upBurst = 0;
+        downBurst = 0;
+      }, 15);
     });
 
     this.screen.key(['down'], () => {
-      if (this.suggestions.length > 0 && !this.historySearchActive) {
-        this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
-        this.queueRender();
-      } else {
-        this.navigateHistory(1);
-      }
+      downBurst++;
+      if (upDownTimeout) clearTimeout(upDownTimeout);
+      upDownTimeout = setTimeout(() => {
+        if (downBurst === 1) {
+          if (this.suggestions.length > 0 && !this.historySearchActive) {
+            this.suggestionIndex = (this.suggestionIndex + 1) % this.suggestions.length;
+            this.queueRender();
+          } else {
+            this.navigateHistory(1);
+          }
+        }
+        upBurst = 0;
+        downBurst = 0;
+      }, 15);
     });
     this.screenKeyBindings.push({ key: 'down', handler: () => {} });
 
@@ -1471,8 +1495,14 @@ export class TerminalChatUI {
   }
 
   private setupTranscriptScroll(): void {
-    // Note: Mouse wheel events are intentionally removed so that native terminal
-    // text selection (traditional visual highlighting) is not overridden by blessed mouse capturing.
+    this.transcriptBox.on('wheeldown', () => {
+      // Scroll down (newer messages)
+      this.scrollBy(-3);
+    });
+    this.transcriptBox.on('wheelup', () => {
+      // Scroll up (older messages)
+      this.scrollBy(3);
+    });
 
     // Enable clipboard copy of transcript content (Ctrl+Y)
     this.screen.key(['C-y'], () => {
@@ -1708,7 +1738,16 @@ export class TerminalChatUI {
       };
     }
     
-    this.appendLine(`${icon} ${message}`);
+    // For multi-line messages, process each line individually to prevent false-positive collapsing
+    if (message.includes('\n')) {
+      const lines = message.split(/\r?\n/);
+      this.appendLine(`${icon} ${lines[0]}`);
+      for (let i = 1; i < lines.length; i++) {
+        this.appendLine(`  ${lines[i]}`);
+      }
+    } else {
+      this.appendLine(`${icon} ${message}`);
+    }
   }
 
   private armInterruptReset(): void {

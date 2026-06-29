@@ -297,38 +297,72 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
     }
     if (trimmed === '/help') {
       logger.info(`
-Commands:
+**Commands:**
   /model <model>               Switch model
   /review <file1> [file2 ...]  Review one or more files
   /suggest <task description>  Generate code suggestion
   /search [--rebuild] <query>  Semantic search across codebase
   /compress [--keep N]         Force context compression (N = messages to keep)
-  /clear                      Clear conversation (keep system)
-  /sessions                   List saved sessions
-  /save                       Save current session
-  /skills                     Manage skills (list, search, install, list-local)
-  /models                     List available models
-  /theme [name]               List or switch CLI visual themes
+  /clear                       Clear conversation (keep system)
+  /sessions                    List saved sessions
+  /save                        Save current session
+  /skills                      Manage skills (list, search, install, list-local)
+  /models                      List available models
+  /theme [name]                List or switch CLI visual themes
   /permissions [cmd]           View/set tool permissions (list, set, mode, clear)
-  /allow-all                  Allow all tools for this session
-  /deny-all                   Disable permission bypass
+  /allow-all                   Allow all tools for this session
+  /deny-all                    Disable permission bypass
   /mode [plan|build]           Switch agent mode or show current mode
   /plan [show|clear|export]    Manage active plan
-  /workspace                  Show live structural digest of the active repository
-  /audit                      Review tool execution audit trail
+  /workspace                   Show live structural digest of the active repository
+  /audit                       Review tool execution audit trail
   /task <subagent> <prompt>    Delegate task to a subagent (explore, general)
-  /compare <prompt>           Compare responses from two configured providers
-  /auth status                Show BYOK auth status for all providers
-  /auth list                  List supported BYOK providers
-  /auth set <provider>        Store a provider API key securely
-  /auth clear <provider>      Remove stored credentials for a provider
-  /set-key <provider> <key>   Legacy config API key setter
-  /status                     Show session dashboard (tokens, duration, changed files)
-  /copy                       Copy last response to clipboard
-  /paste                      Paste clipboard content as prompt
+  /compare <prompt>            Compare responses from two configured providers
+  /auth status                 Show BYOK auth status for all providers
+  /auth list                   List supported BYOK providers
+  /auth set <provider>         Store a provider API key securely
+  /auth clear <provider>       Remove stored credentials for a provider
+  /set-key <provider> <key>    Legacy config API key setter
+  /status                      Show session dashboard (tokens, duration, changed files)
+  /copy                        Copy last response to clipboard
+  /paste                       Paste clipboard content as prompt
   @<subagent> <prompt>         Delegate via @mention (e.g., @explore find auth)
   !<command>                   Execute a shell command (e.g. !ls -la)
-  /exit                       Quit
+  /exit                        Quit
+
+**Keyboard Shortcuts:**
+  [Global / General]
+  Ctrl + Q                     Quit application
+  Ctrl + O                     Toggle session mode (Plan / Build)
+  F2                           Save current session
+  F3                           Show session status
+  Ctrl + T                     Toggle collapsed outputs
+  Ctrl + K                     Copy selected text or last response
+  Ctrl + B                     Copy ONLY the last AI response from transcript
+  Ctrl + Y                     Copy the ENTIRE transcript buffer
+  Ctrl + G                     Paste clipboard content
+  Ctrl + F                     Open Browser
+  Ctrl + R                     Toggle history search
+  Escape                       Cancel running task / clear input / close history search
+
+  [Transcript Scrolling]
+  Shift + Up                   Scroll transcript up by 1 line
+  Shift + Down                 Scroll transcript down by 1 line
+  PageUp                       Scroll transcript up by a half-page
+  PageDown                     Scroll transcript down by a half-page
+  Home                         Scroll to top of transcript
+  End                          Scroll to bottom of transcript
+  Ctrl + Y                     Copy the entire transcript to clipboard
+
+  [Input & Navigation]
+  Up / Down                    Navigate history or auto-suggestions
+  Left / Right                 Move cursor left or right
+  Tab                          Accept current auto-suggestion
+  Ctrl + A                     Move cursor to start of line
+  Ctrl + E                     Move cursor to end of line
+  Ctrl + U                     Clear text before cursor
+  Ctrl + W                     Delete word before cursor
+  Ctrl + D                     Exit if input is empty
       `);
       await promptNext(session, rl, config);
       return;
