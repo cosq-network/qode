@@ -4,6 +4,7 @@ import stripAnsi from 'strip-ansi';
 import { setOutputSink, type OutputEntry } from '../utils/output.js';
 import { THEMES, type ThemePalette } from '../utils/themes.js';
 import type { CompletionContext } from './completion.js';
+import { renderMarkdown } from '../utils/markdown.js';
 
 // Constants for maintainability
 const MAX_TRANSCRIPT_LINES = 500;
@@ -342,6 +343,7 @@ export class TerminalChatUI {
       forceUnicode: true,
       autoPadding: true,
       tabSize: 2,
+      mouse: true,
     });
 
     this.screen.key(['C-q'], () => {
@@ -973,6 +975,14 @@ export class TerminalChatUI {
       result.push(...wrapped);
     }
 
+    if (this.streamingState.isStreaming && this.streamingState.currentChunk) {
+      const markdown = renderMarkdown(this.streamingState.currentChunk);
+      const lines = markdown.split('\n');
+      for (const line of lines) {
+        result.push(...this.wordWrap(line, width));
+      }
+    }
+
     if (result.length === 0) {
       result.push(chalk.hex(this.colors.dimFg)('Start a conversation — type /help for commands'));
     }
@@ -1143,15 +1153,17 @@ export class TerminalChatUI {
 
     this.screen.key(['pageup'], () => {
       const height = this.innerHeight();
-      this.scrollBy(-Math.max(3, Math.floor(height * 0.5)));
+      // Scroll up to see older messages (positive delta increases offset from bottom)
+      this.scrollBy(Math.max(3, Math.floor(height * 0.5)));
     });
-    this.screenKeyBindings.push({ key: 'pageup', handler: () => this.scrollBy(-Math.max(3, Math.floor(this.innerHeight() * 0.5))) });
+    this.screenKeyBindings.push({ key: 'pageup', handler: () => this.scrollBy(Math.max(3, Math.floor(this.innerHeight() * 0.5))) });
 
     this.screen.key(['pagedown'], () => {
       const height = this.innerHeight();
-      this.scrollBy(Math.max(3, Math.floor(height * 0.5)));
+      // Scroll down to see newer messages (negative delta decreases offset from bottom)
+      this.scrollBy(-Math.max(3, Math.floor(height * 0.5)));
     });
-    this.screenKeyBindings.push({ key: 'pagedown', handler: () => this.scrollBy(Math.max(3, Math.floor(this.innerHeight() * 0.5))) });
+    this.screenKeyBindings.push({ key: 'pagedown', handler: () => this.scrollBy(-Math.max(3, Math.floor(this.innerHeight() * 0.5))) });
 
     this.screen.key(['home'], () => this.scrollToTop());
     this.screenKeyBindings.push({ key: 'home', handler: () => this.scrollToTop() });
@@ -1360,6 +1372,15 @@ export class TerminalChatUI {
   }
 
   private setupTranscriptScroll(): void {
+    this.transcriptBox.on('wheeldown', () => {
+      // Scroll down (newer messages)
+      this.scrollBy(-3);
+    });
+    this.transcriptBox.on('wheelup', () => {
+      // Scroll up (older messages)
+      this.scrollBy(3);
+    });
+
     this.scrollHandler = () => {
       const scrollPerc = this.transcriptBox.getScrollPerc();
       this.isAtBottom = scrollPerc >= 99;
@@ -1513,13 +1534,15 @@ export class TerminalChatUI {
     // Handle streaming chunks
     if (entry.kind === 'raw' && this.streamingState.isStreaming) {
       this.streamingState.currentChunk += entry.message;
-      this.appendRaw(entry.message);
+      this.invalidateWrapCache();
+      this.queueRender();
       return;
     }
     
-    // Handle raw messages
+    // Handle raw messages (non-streaming)
     if (entry.kind === 'raw') {
-      this.appendRaw(entry.message);
+      const markdown = renderMarkdown(entry.message);
+      this.appendRaw(markdown);
       return;
     }
     
@@ -1540,6 +1563,8 @@ export class TerminalChatUI {
         streamId: `stream_${Date.now()}`,
       };
     } else if (message.includes('Stream complete') || message.includes('stream ended')) {
+      const markdown = renderMarkdown(this.streamingState.currentChunk);
+      this.appendRaw(markdown);
       this.streamingState = {
         isStreaming: false,
         currentChunk: '',
