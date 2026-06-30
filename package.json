@@ -1,6 +1,6 @@
 {
   "name": "@cosq-network/qode",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "type": "module",
   "author": "Benoy Bose <benoybose@cosq.net> (COSQ Network Private Limited)",
   "description": "Multi-provider coding agent CLI with tool use, context compression, and session resume",
