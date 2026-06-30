@@ -95,7 +95,6 @@ Enter slash commands directly into the prompt to manage your sessions, settings,
 | :--- | :--- | :--- |
 | `/help` | `/help` | Lists all supported commands and describes their options. |
 | `/model` | `/model <model-name>` | Switch current model in the middle of a chat turn. |
-| `/models` | `/models` | List available providers and models. |
 | `/review` | `/review <file1> [file2 ...]` | Load file contents and request a detailed AI code review. |
 | `/suggest` | `/suggest <description>` | Request code implementation templates or templates. |
 | `/search` | `/search [--rebuild] <query>` | Semantic search across codebase. |

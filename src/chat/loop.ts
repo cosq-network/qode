@@ -220,7 +220,7 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
 
   rl.on('line', async (input) => {
     let trimmed = input.trim();
-    // Check for slash commands first (e.g., /auth, /models)
+    // Check for slash commands first (e.g., /auth)
     const handled = await handleSlashCommand(trimmed);
     if (handled) {
       await promptNext(session, rl, config);
@@ -307,7 +307,6 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
   /sessions                    List saved sessions
   /save                        Save current session
   /skills                      Manage skills (list, search, install, list-local)
-  /models                      List available models
   /theme [name]                List or switch CLI visual themes
   /permissions [cmd]           View/set tool permissions (list, set, mode, clear)
   /allow-all                   Allow all tools for this session
@@ -370,34 +369,60 @@ async function startLegacyChatLoop(resumeId?: string, initialModel?: string): Pr
 
     // Model switching
     if (trimmed.startsWith('/model')) {
-      const selected = trimmed.slice('/model'.length).trim();
-      if (!selected) {
-        logger.info('Usage: /model <name>');
+      if (activeUI) {
+        const result = await activeUI.showModelSelector(config);
+        if (result) {
+          if (result.apiKey) {
+            config.providers[result.provider] = {
+              ...config.providers[result.provider],
+              apiKey: result.apiKey,
+            };
+            await saveConfig(config);
+          }
+          const prevModel = session.modelName;
+          const resolved = result.model;
+          session.clearProvider();
+          session.modelName = resolved;
+          try {
+            const provider = await engine.createProvider(resolved);
+            session.setProvider(provider);
+            logger.info(`Switched to ${resolved}`);
+          } catch (e: unknown) {
+            session.modelName = prevModel;
+            const errMsg = e instanceof Error ? e.message : String(e);
+            logger.warn(`⚠️  Model switch failed: ${errMsg}`);
+          }
+        }
       } else {
-        const prevModel = session.modelName;
-        const match = findModel(selected);
-        const resolved = match ? match.model : selected;
-        session.clearProvider();
-        session.modelName = resolved;
-        try {
-          const provider = await engine.createProvider(resolved);
-          session.setProvider(provider);
-        } catch (e: unknown) {
-          if (e instanceof MissingApiKeyError) {
-            logger.warn(
-              `⚠️  No API key configured for ${e.provider}. Model is now selected as '${resolved}', but provider setup is incomplete. Set credentials for this provider and try again.`
-            );
+        const selected = trimmed.slice('/model'.length).trim();
+        if (!selected) {
+          logger.info('Usage: /model <name>');
+        } else {
+          const prevModel = session.modelName;
+          const match = findModel(selected);
+          const resolved = match ? match.model : selected;
+          session.clearProvider();
+          session.modelName = resolved;
+          try {
+            const provider = await engine.createProvider(resolved);
+            session.setProvider(provider);
+            logger.info(`Switched to ${resolved}`);
+          } catch (e: unknown) {
+            if (e instanceof MissingApiKeyError) {
+              logger.warn(
+                `⚠️  No API key configured for ${e.provider}. Model is now selected as '${resolved}', but provider setup is incomplete. Set credentials for this provider and try again.`
+              );
+              await promptNext(session, rl, config);
+              return;
+            }
+
+            session.modelName = prevModel;
+            const errMsg = e instanceof Error ? e.message : String(e);
+            logger.warn(`⚠️  Model switch failed: ${errMsg}`);
             await promptNext(session, rl, config);
             return;
           }
-
-          session.modelName = prevModel;
-          const errMsg = e instanceof Error ? e.message : String(e);
-          logger.warn(`⚠️  Model switch failed: ${errMsg}`);
-          await promptNext(session, rl, config);
-          return;
         }
-        logger.info(`Switched to ${resolved}`);
       }
       await promptNext(session, rl, config);
       return;

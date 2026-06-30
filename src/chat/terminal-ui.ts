@@ -246,6 +246,7 @@ export class TerminalChatUI {
   private screen: blessed.Widgets.Screen;
   private startTime = Date.now();
   private sessionDurationSecs = 0;
+  private modalActive = false;
   private headerTimer: NodeJS.Timeout | null = null;
   private headerBox: blessed.Widgets.BoxElement;
   private transcriptBox: blessed.Widgets.BoxElement;
@@ -703,7 +704,17 @@ export class TerminalChatUI {
   }
 
   public showSetupFlow(): Promise<import('./setup-ui.js').SetupResult | null> {
-    return import('./setup-ui.js').then(m => m.runSetupTUI(this.screen, this.colors));
+    this.modalActive = true;
+    return import('./setup-ui.js').then(m => m.runSetupTUI(this.screen, this.colors)).finally(() => {
+      this.modalActive = false;
+    });
+  }
+
+  public showModelSelector(config: any): Promise<import('./model-selector-ui.js').ModelSelectorResult | null> {
+    this.modalActive = true;
+    return import('./model-selector-ui.js').then(m => m.showModelSelectorTUI(this.screen, this.colors, config)).finally(() => {
+      this.modalActive = false;
+    });
   }
 
   public async showDiffTheater(file: string, beforeContent: string, afterContent: string): Promise<'accept' | 'revert'> {
@@ -1246,7 +1257,10 @@ export class TerminalChatUI {
     };
 
     for (const [key, handler] of Object.entries(inputKeys)) {
-      this.screen.key([key], (ch, k) => { handler(ch, k); });
+      this.screen.key([key], (ch, k) => {
+        if (this.modalActive) return;
+        handler(ch, k);
+      });
       this.screenKeyBindings.push({ key, handler: () => handler('', {}) });
     }
 
@@ -1256,6 +1270,7 @@ export class TerminalChatUI {
     this.screenKeyBindings.push({ key: 'resize', handler: () => this.queueRender() });
 
     this.screen.key(['pageup'], () => {
+      if (this.modalActive) return;
       const height = this.innerHeight();
       // Scroll up to see older messages (positive delta increases offset from bottom)
       this.scrollBy(Math.max(3, Math.floor(height * 0.5)));
@@ -1263,25 +1278,34 @@ export class TerminalChatUI {
     this.screenKeyBindings.push({ key: 'pageup', handler: () => this.scrollBy(Math.max(3, Math.floor(this.innerHeight() * 0.5))) });
 
     this.screen.key(['pagedown'], () => {
+      if (this.modalActive) return;
       const height = this.innerHeight();
       // Scroll down to see newer messages (negative delta decreases offset from bottom)
       this.scrollBy(-Math.max(3, Math.floor(height * 0.5)));
     });
     this.screenKeyBindings.push({ key: 'pagedown', handler: () => this.scrollBy(-Math.max(3, Math.floor(this.innerHeight() * 0.5))) });
 
-    this.screen.key(['home'], () => this.scrollToTop());
+    this.screen.key(['home'], () => {
+      if (this.modalActive) return;
+      this.scrollToTop();
+    });
     this.screenKeyBindings.push({ key: 'home', handler: () => this.scrollToTop() });
 
-    this.screen.key(['end'], () => this.scrollToBottom());
+    this.screen.key(['end'], () => {
+      if (this.modalActive) return;
+      this.scrollToBottom();
+    });
     this.screenKeyBindings.push({ key: 'end', handler: () => this.scrollToBottom() });
 
     this.screen.key(['C-r'], () => {
+      if (this.modalActive) return true;
       this.toggleHistorySearch();
       return true;
     });
     this.screenKeyBindings.push({ key: 'C-r', handler: () => this.toggleHistorySearch() });
 
     this.screen.key(['escape'], (_ch: any, _key: any) => {
+      if (this.modalActive) return;
       if (this.historySearchActive) {
         this.clearHistorySearch();
         this.renderAll();
@@ -1308,6 +1332,7 @@ export class TerminalChatUI {
     this.screenKeyBindings.push({ key: 'escape', handler: () => {} }); // Complex handler, can't easily replicate
 
     this.screen.key(['tab'], () => {
+      if (this.modalActive) return;
       if (this.historySearchActive) {
         this.acceptHistorySearch();
         return;
@@ -1323,6 +1348,7 @@ export class TerminalChatUI {
     let downBurst = 0;
 
     this.screen.key(['up'], () => {
+      if (this.modalActive) return;
       upBurst++;
       if (upDownTimeout) clearTimeout(upDownTimeout);
       upDownTimeout = setTimeout(() => {
@@ -1340,6 +1366,7 @@ export class TerminalChatUI {
     });
 
     this.screen.key(['down'], () => {
+      if (this.modalActive) return;
       downBurst++;
       if (upDownTimeout) clearTimeout(upDownTimeout);
       upDownTimeout = setTimeout(() => {
@@ -1358,6 +1385,7 @@ export class TerminalChatUI {
     this.screenKeyBindings.push({ key: 'down', handler: () => {} });
 
     this.screen.key(['left'], () => {
+      if (this.modalActive) return;
       this.historyIndex = -1;
       this.cursor = Math.max(0, this.cursor - 1);
       this.queueRender();
@@ -1365,6 +1393,7 @@ export class TerminalChatUI {
     this.screenKeyBindings.push({ key: 'left', handler: () => {} });
 
     this.screen.key(['right'], () => {
+      if (this.modalActive) return;
       this.historyIndex = -1;
       this.cursor = Math.min(this.inputValue.length, this.cursor + 1);
       this.queueRender();
@@ -1372,6 +1401,7 @@ export class TerminalChatUI {
     this.screenKeyBindings.push({ key: 'right', handler: () => {} });
 
     this.screen.key(['backspace'], () => {
+      if (this.modalActive) return;
       this.historyIndex = -1;
       if (this.historySearchActive) {
         this.historySearchQuery = this.historySearchQuery.slice(0, -1);
@@ -1387,6 +1417,7 @@ export class TerminalChatUI {
     this.screenKeyBindings.push({ key: 'backspace', handler: () => {} });
 
     this.screen.key(['delete'], () => {
+      if (this.modalActive) return;
       this.historyIndex = -1;
       if (this.cursor < this.inputValue.length) {
         this.inputValue = `${this.inputValue.slice(0, this.cursor)}${this.inputValue.slice(this.cursor + 1)}`;
@@ -1465,6 +1496,7 @@ export class TerminalChatUI {
 
     // Catch-all for printable character input
     this.keypressHandler = (ch, key) => {
+      if (this.modalActive) return;
       if (!this.inputFocused) return;
       if (!key || !ch) return;
       if (key.ctrl || key.meta) return;
@@ -1506,6 +1538,7 @@ export class TerminalChatUI {
 
     // Enable clipboard copy of transcript content (Ctrl+Y)
     this.screen.key(['C-y'], () => {
+      if (this.modalActive) return;
       try {
         const content = this.transcriptBox.getContent();
         // Write to system clipboard using clipboardy

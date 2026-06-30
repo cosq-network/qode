@@ -95,8 +95,4 @@ describe('Slash command utilities', () => {
     expect(mockAuthManager.connectProvider).toHaveBeenCalledWith('Anthropic');
   });
 
-  test('handleSlashCommand handles /models', async () => {
-    const handled = await handleSlashCommand('/models');
-    expect(handled).toBe(true);
-  });
 });

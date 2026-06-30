@@ -235,7 +235,6 @@ Delegate work to subagents using `/task <subagent> <prompt>` or `@<subagent> <pr
 ```text
 /model <model>               Switch the active model
 /model                       List available models
-/models                      List available providers and models
 /search [--rebuild] <query>  Semantic search across codebase
 /compress [--keep N]         Force context compression
 /clear                       Clear conversation (keep system)

@@ -1,6 +1,5 @@
 import { loadConfig, saveConfig } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { listModels } from '../providers/models.js';
 import { getAuthManager } from '../auth/manager.js';
 import { AUTH_PROVIDERS, resolveAuthProviderName } from '../auth/providers.js';
 
@@ -86,18 +85,12 @@ export async function authCommand(action = 'status', providerInput?: string): Pr
   logger.info('Examples: /auth set openai, /auth set gemini, /auth status');
 }
 
-/** List available models. */
-export async function listModelsCommand(): Promise<void> {
-  await listModels();
-}
-
 /** Registry of slash command handlers. */
 export const slashCommandHandlers: Record<string, (...args: string[]) => Promise<void>> = {
   'set-key': async (provider: string, key: string) => setKey(provider, key),
   'clear-key': async (provider: string) => clearKey(provider),
   'auth': async (action?: string, ...providerParts: string[]) => authCommand(action, providerParts.join(' ')),
   'connect': async (...providerParts: string[]) => authCommand('set', providerParts.join(' ')),
-  'models': async () => listModelsCommand(),
 };
 
 /** Parse raw slash command input and dispatch. Returns true if a slash command was handled. */
